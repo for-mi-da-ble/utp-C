@@ -1,0 +1,3 @@
+{ "name": "SIG-UTP · Gestión Técnico-Pedagógica", "short_name": "SIG-UTP", "start_url": "./", "scope": "./", "display": "standalone", "lang": "es-CL",
+  "background_color": "#eef0f3", "theme_color": "#eef0f3",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }] }

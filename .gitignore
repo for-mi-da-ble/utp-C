@@ -1,0 +1,7 @@
+# NUNCA subir datos del colegio al repositorio público (contienen datos personales)
+*.xlsx
+*.xls
+*.csv
+*.docx
+node_modules/
+.DS_Store
