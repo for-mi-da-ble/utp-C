@@ -56,4 +56,4 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   console.log('✓ exportado y restaurado →', await imp(out, 'Base unificada cargada')); assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:bloques')).length), info);
   const hojas = await p.evaluate(async () => { return null; });
   assert.equal(dialogs, 0, 'sin diálogos nativos'); assert.deepEqual(errs, []); console.log('✓ sin alert/confirm nativos, sin errores JS\n\nTODO OK'); await b.close();
-})().catch(e => { console.error('FALLO:', e.message); process.exit(1); });
+})().catch(e => { console.error('FALLO:', e.stack); process.exit(1); });

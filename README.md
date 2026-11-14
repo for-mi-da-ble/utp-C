@@ -69,17 +69,17 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
 - **Hoy:** botón *Registrar ausencia* → al elegir el docente se ven de inmediato los bloques que deja sin atender y quién
   puede cubrir (No lectivo / Aula de recursos PIE, ordenados por quien lleva menos reemplazos en el mes). Un toque asigna.
   *Generar parte de las 08:00* arma el texto y la tabla para Gmail o WhatsApp.
-- **Semana:** numeración por Semana de Clases oficial (los recesos no cuentan), foco, consejo y reunión lineal editables,
-  eventos arrastrables entre días y entre Mañana/Tarde, matriz permanente al pie, boletín del viernes.
-  **Modo edición** (botón en la cabecera): cada actividad muestra controles de un clic para moverla de día (◀ ▶), cambiarla
-  de jornada, editarla o eliminarla (con *Deshacer*), y marca en amarillo los posibles duplicados del mismo día.
-  **PDF carta** descarga el calendario semanal en tamaño carta apaisado para adjuntar al correo.
-  **Cumpleaños de la semana**: se agregan con nombre, día y mes (hoja `09_Cumpleanos`), y salen en el boletín y el PDF.
-- **Calendario mensual:** muestra solo los **hitos** (`mensual = SI`), que son los eventos del Calendario Anual, cada uno
-  como un bloque con su nombre. Cargar de nuevo el Calendario Anual **sincroniza** el mensual con el archivo: agrega lo nuevo,
-  quita lo eliminado y conserva el detalle semanal de lo que sigue igual. La rutina semanal se puede mostrar con un botón.
+- **Semana:** dos barras a lo ancho de los cinco días, como el PDF. Orden de las burbujas de cada día:
+  - *Actividades estudiantes:* 1) **nota especial** (rojo pálido: plazos, feriados, cambios de horario), 2) **cumpleaños**
+    (naranja), 3) **actividades** (azul), 4) **reforzamiento** (amarillo, una burbuja con todas sus líneas), 5) **talleres
+    extraescolares** (celeste, una burbuja).
+  - *Actividades funcionarios:* 1) **trabajo con funcionarios** (amarillo pálido), 2) **reuniones fijas** (una burbuja),
+    3) **reuniones externas** (gris, una burbuja).
+  Cada evento tiene una `seccion` (ESTUDIANTES, NOTA, FUNCIONARIOS o EXTERNAS).
 - **Hito vs. detalle:** un mismo evento se ve distinto según la vista. *SIMCE II° medio* es un bloque en el mensual y, en la
-  semana, el PDF y el parte diario, despliega su `detalle` hora a hora (una línea por horario: `08:30 Ingreso a sala`).
+  semana, el PDF y el parte diario, despliega su `detalle`. En la ficha del evento, *Detalle por curso u horario* tiene filas de **hora · curso · actividad ·
+  lugar** y **subsecciones** (p. ej. una por ciclo) que se separan con línea punteada. Si cada curso tiene su horario,
+  se deja vacío el *Horario* general y la primera línea de la burbuja no muestra hora.
   Las actividades que solo existen en la semana tienen `mensual = NO`.
 - **Semana:** numeración por Semana de Clases oficial (los recesos no cuentan), foco, consejo y reunión lineal editables,
   eventos arrastrables entre días y entre Mañana/Tarde, matriz permanente al pie, boletín del viernes.
@@ -97,7 +97,9 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   área, cursos, espacio, responsable) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
 - **Limpieza (Ajustes):** *Revisar y unir repetidos* une un hito del mensual con la actividad semanal del mismo día y
   nombre: queda el hito (con su nombre) y recibe la hora y el detalle de la semana.
-- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas filas que la vista Semana. Si una semana viene muy cargada, achica la letra, acorta los
+- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas barras, burbujas y colores que la vista Semana.
+- **Cumpleaños:** hoja `09_Cumpleanos` (nombre, día y mes). Se cargan con los listados de docentes y asistentes del
+  Mineduc (.csv) en *Agregar desde archivos originales*; del listado **no se guarda el RUN ni el año de nacimiento**. Si una semana viene muy cargada, achica la letra, acorta los
   detalles y, como último recurso, indica "+N más" en la celda.
 - **Calendario:** marzo a diciembre; cada evento es independiente y se arrastra entre días. En celular: mantener pulsado y arrastrar.
 - **Horarios:** Ciclo → Curso, por docente/PIE, y sábana comparativa. Muestra alertas de eventos del curso y ausencias de la semana.

@@ -74,21 +74,29 @@ function vHoy() {
       </div>
     </div>`;
 }
-const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${Object.entries(L.SECCIONES).map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n.replace('Actividades ', '').replace('Reuniones y acciones externas', 'Externas')}</option>`).join('')}</select><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
+const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${SEC_OPC.map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
 const RUT_K = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
 const rutChip = m => `<div class="rut ${RUT_K[m.categoria]}" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'} title="${esc(`${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' · ' + L.nombreEspacio(m.sala_id) : ''}`)}"><b>${m.ini}</b> ${esc(m.titulo)}</div>`;
 // Detalle por hora: cada línea "08:30 Ingreso a sala" se muestra con la hora destacada.
-const agenda = d => String(d || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => { const m = /^(\d{1,2}[:.]\d{2}(?:\s*[-–a]\s*\d{1,2}[:.]\d{2})?)\s*(.*)$/.exec(x); return `<li>${m ? `<b>${esc(m[1].replace('.', ':'))}</b> ${esc(m[2])}` : esc(x)}</li>`; }).join('');
+// Clase de color de cada burbuja según su sección (vista semanal, Hoy y PDF).
+const K_SEC = { NOTA: 'nota', ESTUDIANTES: 'est', FUNCIONARIOS: 'func', EXTERNAS: 'ext' };
+// Detalle con subsecciones: "== E. Media" se dibuja como separador punteado; cada línea muestra hora, curso, actividad y (lugar).
+const detalleHTML = d => { const it = L.parseDetalle(d); return it.length ? `<div class="det">${it.map(i => i.sub !== undefined ? `<div class="dsub">${esc(i.sub)}</div>` : `<div class="dit">${i.hora ? `<b>${esc(i.hora.replace('-', '–'))}</b> ` : ''}${esc(L.textoItem(i))}</div>`).join('')}</div>` : ''; };
 const horaEnTitulo = e => !!e.hora && String(e.titulo).replace('.', ':').includes(String(e.hora).slice(0, 5)); // "11:40 Carta de amor": no repetir la hora
-const evChip = (e, edit, dup, mes) => mes ? `<div class="ev ${L.AREAS[e.area] || 'blue'}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}" ${e.detalle ? `title="${esc(String(e.detalle).slice(0, 400))}"` : ''}>${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b></div>`
-  : `<div class="ev ${L.AREAS[e.area] || 'blue'} ${dup === true ? 'dup' : ''} ${L.enMensual(e) ? 'hito' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${(h => h && !horaEnTitulo(e) ? `<span class="evh">${esc(h.txt)}${h.varios ? ' <i>· varios horarios</i>' : ''}</span>` : '')(L.horaVisible(e))}<b>${esc(e.titulo)}</b>${L.enMensual(e) ? '<i class="tag mes" title="También aparece en el calendario mensual">mensual</i>' : ''}${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))}</small>` : ''}${e.detalle ? `<ul class="agenda">${agenda(e.detalle)}</ul>` : ''}${edit === true ? evTools(e) : ''}</div>`;
+// En la semana la primera línea muestra solo la hora propia del evento (nunca una deducida del detalle: cada curso tiene la suya).
+const evChip = (e, edit, dup, mes) => mes ? `<div class="ev ${L.AREAS[e.area] || 'blue'}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}" ${e.detalle ? `title="${esc(L.parseDetalle(e.detalle).map(i => i.sub !== undefined ? '— ' + i.sub : [i.hora, L.textoItem(i)].filter(Boolean).join(' ')).join('\n').slice(0, 400))}"` : ''}>${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b></div>`
+  : `<div class="ev k-${K_SEC[L.seccionDe(e)]} ${dup === true ? 'dup' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b>${L.enMensual(e) ? '<i class="tag mes" title="También aparece en el calendario mensual">mensual</i>' : ''}${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))}</small>` : ''}${detalleHTML(e.detalle)}${edit === true ? evTools(e) : ''}</div>`;
+// Burbuja que agrupa varias líneas de un mismo tipo en un día (notas, cumpleaños, reforzamiento, talleres, reuniones, externas).
+const grupo = (k, titulo, lineas) => lineas.length ? `<div class="ev grp k-${k}"><b class="gt">${titulo}</b>${lineas.join('')}</div>` : '';
+const linEv = e => `<div class="gl" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<b>${esc(String(e.hora).replace('-', '–'))}</b> ` : ''}${esc(e.titulo)}${detalleHTML(e.detalle)}</div>`;
+const linMat = (m, quita) => `<div class="gl" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'}><b>${m.ini}</b> ${esc(quita ? m.titulo.replace(quita, '') : m.titulo)}${m.sala_id ? ` <span class="lug">(${esc(L.nombreEspacio(m.sala_id))})</span>` : ''}</div>`;
 
 function parteDiario(f) {
   const r = L.resumenDia(f), w = L.semanaDe(f), ln = [`PARTE DIARIO UTP — ${CFG.COLEGIO || ''}`, `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, ''];
   let html = `<p><b>Parte diario UTP — ${esc(CFG.COLEGIO || '')}</b><br>${esc(L.fechaLarga(f))} · ${esc(L.etiquetaSemana(w))}</p>`;
   ln.push('ACTIVIDADES DEL DÍA'); html += '<p><b>Actividades del día</b></p><ul>';
   if (!r.eventos.length) { ln.push('• Sin actividades programadas.'); html += '<li>Sin actividades programadas.</li>'; }
-  for (const e of r.eventos) { const t = `${e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada')} · ${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`; const nt = e.detalle ? String(e.detalle).split('\n') : []; ln.push('• ' + t, ...nt.map(x => '     ' + x)); html += `<li>${esc(t)}${nt.length ? '<br><small>' + nt.map(esc).join('<br>') + '</small>' : ''}</li>`; }
+  for (const e of r.eventos) { const t = `${e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada')} · ${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`; const nt = lineasDet(e.detalle, ''); ln.push('• ' + t, ...nt.map(x => '     ' + x)); html += `<li>${esc(t)}${nt.length ? '<br><small>' + nt.map(esc).join('<br>') + '</small>' : ''}</li>`; }
   ln.push('', 'AUSENCIAS Y REEMPLAZOS'); html += '</ul><p><b>Ausencias y reemplazos</b></p>';
   if (!r.aus.length) { ln.push('• Sin ausencias informadas.'); html += '<p>Sin ausencias informadas.</p>'; }
   else {
@@ -105,16 +113,30 @@ function parteDiario(f) {
   ln.push('', 'Unidad Técnico-Pedagógica'); html += '<p>Unidad Técnico-Pedagógica</p>';
   return { texto: ln.join('\n'), html, asunto: `Parte diario UTP · ${L.fechaLarga(f)}` };
 }
+const lineasDet = (d, sangria) => L.parseDetalle(d).map(i => sangria + (i.sub !== undefined ? `-- ${i.sub} --` : [i.hora, L.textoItem(i)].filter(Boolean).join(' ')));
 function boletin(l) {
   const w = L.semanaDe(l), ln = [`BOLETÍN SEMANAL — ${L.etiquetaSemana(w)} (${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))})`, ''];
   if (w) { if (w.foco) ln.push('Foco de la semana: ' + w.foco); if (w.consejo_tema) ln.push('Consejo de profesores (lunes): ' + w.consejo_tema); if (w.lineal_cursos) ln.push('Reunión lineal (miércoles): ' + w.lineal_cursos); ln.push(''); }
-  const dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i)), ev = e => `${e.hora ? e.hora + ' ' : ''}${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`;
-  const seccion = (titulo, porDia) => { const b = []; dias.forEach((f, i) => { const x = porDia(f); if (x.length) b.push(`  ${L.DIAS[i + 1]} ${L.fechaCorta(f)}:`, ...x.map(t => '   • ' + t)); }); if (b.length) ln.push(titulo.toUpperCase(), ...b, ''); };
-  seccion('Actividades estudiantes', f => L.eventosDe(f).filter(e => L.seccionDe(e) === 'ESTUDIANTES').map(ev));
-  seccion('Actividades funcionarios', f => L.eventosDe(f).filter(e => L.seccionDe(e) === 'FUNCIONARIOS').map(ev).concat(L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => `${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' — ' + L.nombreEspacio(m.sala_id) : ''}`)));
-  seccion('Talleres y reforzamientos', f => L.rutinaDe(f, { TALLER_ACLE: 1, REFORZAMIENTO: 1 }).map(m => `${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' — ' + L.nombreEspacio(m.sala_id) : ''}`));
-  seccion('Reuniones y acciones externas', f => L.eventosDe(f).filter(e => L.seccionDe(e) === 'EXTERNAS').map(ev));
-  const cum = L.cumplesEntre(l, L.addDias(l, 6)); if (cum.length) ln.push('CUMPLEAÑOS DE LA SEMANA', ...cum.map(c => `   • ${L.DIAS[L.dow(c.fecha)]} ${+c.dia}: ${c.nombre}`), '');
+  const dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i)), cum = L.cumplesEntre(l, L.addDias(l, 6));
+  const ev = (e, pre) => [`   ${pre} ${e.hora ? e.hora + ' ' : ''}${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`, ...lineasDet(e.detalle, '       ')];
+  const mat = (t, ms) => ms.length ? [`   • ${t}:`, ...ms.map(m => `       ${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' (' + L.nombreEspacio(m.sala_id) + ')' : ''}`)] : [];
+  for (const [barra, nombre] of [['ESTUDIANTES', 'ACTIVIDADES ESTUDIANTES'], ['FUNCIONARIOS', 'ACTIVIDADES FUNCIONARIOS']]) {
+    ln.push(nombre);
+    dias.forEach((f, i) => {
+      const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), b = [];
+      if (barra === 'ESTUDIANTES') {
+        de('NOTA').forEach(e => b.push(...ev(e, '[!]')));
+        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   Cumpleaños: ' + cs.map(c => c.nombre).join(', '));
+        de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•'))); const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
+        b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
+      } else {
+        de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); b.push(...mat('Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 })));
+        const x = de('EXTERNAS'); if (x.length) { b.push('   • Reuniones externas:'); x.forEach(e => b.push(...ev(e, '  -'))); }
+      }
+      if (b.length) ln.push(`  ${L.DIAS[i + 1].toUpperCase()} ${L.fechaCorta(f)}`, ...b);
+    });
+    ln.push('');
+  }
   return { texto: ln.join('\n'), asunto: `Boletín semanal · ${L.etiquetaSemana(w)}` };
 }
 function mEnvio(titulo, o) {
@@ -127,35 +149,42 @@ function mEnvio(titulo, o) {
 }
 
 // ============ SEMANA ============
-const FILAS_SEM = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['TALLERES', 'Talleres y reforzamientos'], ['EXTERNAS', 'Reuniones y acciones externas'], ['CUMPLE', 'Cumpleaños']];
+function celdaSemana(f, i, barra, E, dups, cum) {
+  const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), chips = l => l.map(e => evChip(e, E, dups.has(e.id))).join('');
+  let h = '';
+  if (barra === 'ESTUDIANTES') {
+    const notas = de('NOTA'), cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
+    h += E ? chips(notas) : grupo('nota', 'Nota especial', notas.map(linEv));                                   // 1. notas especiales (rojo pálido)
+    h += grupo('cum', '🎂 Cumpleaños', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
+    h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
+    const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
+    h += grupo('ref', 'Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO').map(m => linMat(m, /^reforzamiento\s+/i)));   // 4. reforzamiento (amarillo)
+    h += grupo('tal', 'Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE').map(m => linMat(m, /^talleres?\s+(de\s+)?/i))); // 5. talleres (celeste)
+  } else {
+    h += chips(de('FUNCIONARIOS'));                                                                                // 1. trabajo con funcionarios (amarillo pálido)
+    h += grupo('func', 'Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => linMat(m)));                       // 2. reuniones fijas
+    const ext = de('EXTERNAS'); h += E ? chips(ext) : grupo('ext', 'Reuniones externas', ext.map(linEv));         // 3. externas (gris)
+  }
+  const add = ed() ? `<button class="add" data-a="nuevo-ev" data-f="${f}" data-s="${barra}" aria-label="Agregar actividad">${ic('plus')}</button>` : '';
+  return `<div class="wk-cell" data-drop="sec:${f}:${barra}"><span class="dlbl">${L.DIAS[i + 1]} ${L.fechaCorta(f)}</span>${h}${add}</div>`;
+}
 function vSemana() {
   const l = lunes(), w = L.semanaDe(l), dis = ed() && w ? '' : 'disabled', E = ui.edit && ed();
   const inp = (k, lbl, ph) => `<div class="fld"><label>${lbl}</label><input data-inline="1" data-c="sem" data-k="${k}" value="${esc(w ? w[k] : '')}" placeholder="${ph}" maxlength="300" ${dis}></div>`;
-  let g = '<div class="wk"><div class="wk-c"></div>', nev = 0, ndup = 0;
   const dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i)), cum = L.cumplesEntre(l, L.addDias(l, 6));
-  dias.forEach((f, i) => { const n = L.ausenciasDe(f).length; g += `<div class="wk-d ${f === L.hoy() ? 'today' : ''}" data-a="ir-dia" data-f="${f}"><b>${L.DIAS[i + 1]}</b><span>${L.fechaCorta(f)}</span>${n ? `<i class="tag pink">${n} aus.</i>` : ''}</div>`; });
-  const dups = {}; for (const f of dias) { dups[f] = E ? L.duplicados(L.eventosDe(f)) : new Set(); ndup += dups[f].size; }
-  for (const [k, n] of FILAS_SEM) {
-    if (k === 'CUMPLE' && !cum.length && !ed()) continue;
-    g += `<div class="wk-j sec-${k}"><b>${n}</b></div>`;
-    dias.forEach((f, i) => {
-      let cont = '', add = '';
-      if (k === 'TALLERES') { cont = L.rutinaDe(f, { TALLER_ACLE: 1, REFORZAMIENTO: 1 }).map(rutChip).join(''); if (adm()) add = `<button class="add" data-a="nueva-mat" data-d="${i + 1}" aria-label="Agregar taller o reforzamiento">${ic('plus')}</button>`; }
-      else if (k === 'CUMPLE') { cont = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`).join(''); if (ed()) add = `<button class="add" data-a="edit-cum" data-id="" data-f="${f}" aria-label="Agregar cumpleaños">${ic('plus')}</button>`; }
-      else {
-        const evs = L.eventosDe(f).filter(e => L.seccionDe(e) === k); nev += evs.length;
-        cont = evs.map(e => evChip(e, E, dups[f].has(e.id))).join('') + (k === 'FUNCIONARIOS' ? L.rutinaDe(f, { REUNION_FIJA: 1 }).map(rutChip).join('') : '');
-        if (ed()) add = `<button class="add" data-a="nuevo-ev" data-f="${f}" data-s="${k}" aria-label="Agregar">${ic('plus')}</button>`;
-      }
-      g += `<div class="wk-cell sec-${k}" ${k === 'ESTUDIANTES' || k === 'FUNCIONARIOS' || k === 'EXTERNAS' ? `data-drop="sec:${f}:${k}"` : ''}><span class="dlbl">${L.DIAS[i + 1]} · ${n}</span>${cont}${add}</div>`;
-    });
+  const dups = new Set(); let ndup = 0, nev = 0; if (E) for (const f of dias) for (const id of L.duplicados(L.eventosDe(f))) { dups.add(id); ndup++; }
+  for (const f of dias) nev += L.eventosDe(f).length;
+  let g = '<div class="wk2">' + dias.map((f, i) => { const n = L.ausenciasDe(f).length; return `<div class="wk-d ${f === L.hoy() ? 'today' : ''}" data-a="ir-dia" data-f="${f}"><b>${L.DIAS[i + 1]}</b><span>${L.fechaCorta(f)}</span>${n ? `<i class="tag pink">${n} aus.</i>` : ''}</div>`; }).join('');
+  for (const [barra, nombre] of [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios']]) {
+    g += `<div class="secbar">${nombre}</div>` + dias.map((f, i) => celdaSemana(f, i, barra, E, dups, cum)).join('');
   }
   g += '</div>';
-  return head(w ? L.etiquetaSemana(w) : 'Semana', `${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))} ${l.slice(0, 4)}${w ? ` · Semestre ${esc(w.semestre)}` : ' · fuera del año lectivo'}`, navFecha(7, 'Semana actual') + (ed() ? `<button class="btn ${E ? 'on' : ''}" data-a="modo-edit" aria-pressed="${E}">${E ? ic('check') + ' Terminar edición' : 'Modo edición'}</button>` : '') + `<button class="btn" data-a="pdf">PDF carta</button><button class="btn dark" data-a="boletin">${ic('mail')} Boletín del viernes</button>`) +
-    (E ? `<div class="editbar">${ic('alert')}<div><b>Modo edición general.</b> Cada actividad muestra sus controles: ◀ ▶ la mueve de día, el selector la cambia de sección, <b>Editar</b> abre su ficha y ✕ la elimina al instante (con opción de deshacer). También puedes arrastrarlas entre días y secciones. ${nev} actividades esta semana${ndup ? ` · <b>${ndup} posible${ndup > 1 ? 's' : ''} duplicado${ndup > 1 ? 's' : ''}</b> marcado${ndup > 1 ? 's' : ''} en amarillo` : ''}.</div></div>` : '') +
+  const ley = [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['ext', 'Reunión externa']];
+  return head(w ? L.etiquetaSemana(w) : 'Semana', `${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))} ${l.slice(0, 4)}${w ? ` · Semestre ${esc(w.semestre)}` : ' · fuera del año lectivo'}`, navFecha(7, 'Semana actual') + (ed() ? `<button class="btn ${E ? 'on' : ''}" data-a="modo-edit" aria-pressed="${E}">${E ? ic('check') + ' Terminar edición' : 'Modo edición'}</button><button class="btn" data-a="edit-cum" data-id="" data-f="${l}">🎂 Cumpleaños</button>` : '') + `<button class="btn" data-a="pdf">PDF carta</button><button class="btn dark" data-a="boletin">${ic('mail')} Boletín del viernes</button>`) +
+    (E ? `<div class="editbar">${ic('alert')}<div><b>Modo edición general.</b> Cada actividad muestra sus controles: ◀ ▶ la mueve de día, el selector la cambia de sección, <b>Editar</b> abre su ficha y ✕ la elimina al instante (con opción de deshacer). Las notas y las reuniones externas se separan en burbujas para editarlas. ${nev} actividades esta semana${ndup ? ` · <b>${ndup} posible${ndup > 1 ? 's' : ''} duplicado${ndup > 1 ? 's' : ''}</b> marcado${ndup > 1 ? 's' : ''} en amarillo` : ''}.</div></div>` : '') +
     `<div class="card foco">${inp('foco', 'Foco de la semana', 'Ej.: Cierre de evaluaciones del 2° semestre')}${inp('consejo_tema', 'Consejo de profesores (lunes)', 'Tema del consejo')}${inp('lineal_cursos', 'Reunión lineal (miércoles)', 'Cursos citados')}</div>
      <div class="card nopad semana ${E ? 'editing' : ''}">${g}</div>
-     <p class="muted sm">Las reuniones fijas y los talleres y reforzamientos son la <b>rutina semanal</b>: se repiten cada semana lectiva${adm() ? ' y se editan tocándolos (o en Ajustes → Matriz fija)' : ''}.</p>`;
+     <div class="legend semleg">${ley.map(([k, n]) => `<span><i class="sw k-${k}"></i>${n}</span>`).join('')}</div>`;
 }
 function mDuplicados() {
   const p = L.paresDuplicados(); if (!p.length) return toast('No hay hitos del mensual repetidos en la semana', 'ok');
@@ -293,8 +322,8 @@ function vCfg() {
       <div class="card"><h3>Base de datos unificada</h3><p class="muted sm">Toda la plataforma vive en <b>un solo libro .xlsx</b> (una hoja por tabla + un LEEME). Descárgalo como respaldo, edítalo en Excel si quieres y vuelve a cargarlo.</p>
         <button class="btn dark wide" data-a="exportar">Descargar base unificada (.xlsx)</button>
         ${adm() ? `<label class="btn wide filebtn">Cargar base unificada (.xlsx)<input type="file" accept=".xlsx" data-c="import" hidden></label><p class="muted sm">Cargar una base unificada <b>reemplaza</b> todos los datos actuales por los del archivo.</p>` : '<p class="tag amber">Solo un administrador puede cargar datos.</p>'}</div>
-      <div class="card"><h3>Agregar desde archivos originales</h3><p class="muted sm">Opcional. Para incorporar datos desde las planillas antiguas del colegio: base de horarios (BD_AppSheet), Calendario Anual (hojas por mes) o Calendario Semanal (hojas 01, 02…). El formato se detecta solo y los eventos no se duplican.</p>
-        ${adm() ? `<label class="btn wide filebtn">${ic('plus')} Elegir archivo original<input type="file" accept=".xlsx,.xls" data-c="import" hidden></label>` : ''}</div>
+      <div class="card"><h3>Agregar desde archivos originales</h3><p class="muted sm">Opcional. Para incorporar datos desde las planillas antiguas del colegio: base de horarios (BD_AppSheet), Calendario Anual (hojas por mes) o Calendario Semanal (hojas 01, 02…) o los listados de docentes y asistentes del Mineduc (.csv) para los cumpleaños. El formato se detecta solo y nada se duplica.</p>
+        ${adm() ? `<label class="btn wide filebtn">${ic('plus')} Elegir archivo original<input type="file" accept=".xlsx,.xls,.csv" data-c="import" hidden></label>` : ''}</div>
       ${ed() ? `<div class="card"><h3>Limpieza del calendario</h3><p class="muted sm">${(n => n ? `<b>${n} evento${n === 1 ? '' : 's'}</b> aparece${n === 1 ? '' : 'n'} dos veces el mismo día: como hito del mensual y como actividad de la semana.` : 'No hay hitos del mensual repetidos en la semana.')(L.paresDuplicados().length)}</p><button class="btn wide" data-a="ver-dup">Revisar y unir repetidos</button></div>` : ''}
       <div class="card"><h3>Conexión</h3><p><span class="dot ${S.nube ? 'green' : 'gray'}"></span> ${S.nube ? 'Conectado a Google Sheets (nube)' : '<b>Modo local</b>: los datos viven solo en este navegador.'}</p>
         ${S.nube ? `<p class="muted sm">Cuenta: <b>${esc(e.email || '—')}</b> · Rol: <b>${esc(e.rol || '—')}</b><br>Cambios pendientes de subir: <b>${S.pendientes()}</b>${e.ultima ? ' · Última sincronización ' + new Date(e.ultima).toLocaleTimeString('es-CL') : ''}</p><div class="row"><button class="btn" data-a="sync">Sincronizar ahora</button><button class="btn" data-a="salir">Cerrar sesión y borrar datos de este equipo</button></div>`
@@ -318,8 +347,17 @@ function mCrud(t, id, pre) {
 const pie = (existe, f, extra) => `${existe ? `<button class="btn danger" data-a="borrar" data-f="${f}">Eliminar</button>` : ''}<span class="grow"></span>${extra || ''}<button class="btn dark" data-a="guardar" data-f="${f}">Guardar</button>`;
 
 // ============ modales de dominio ============
-const EV_DET = ['detalle', 'area', 'cursos', 'espacio_id', 'responsable'];
-const SEC_OPC = [['ESTUDIANTES', 'Estudiantes'], ['FUNCIONARIOS', 'Funcionarios'], ['EXTERNAS', 'Externa']];
+const EV_DET = ['area', 'cursos', 'espacio_id', 'responsable'];
+const SEC_OPC = [['ESTUDIANTES', 'Estudiantes'], ['NOTA', 'Nota especial'], ['FUNCIONARIOS', 'Funcionarios'], ['EXTERNAS', 'Externa']];
+// Editor del detalle: filas de hora · curso · actividad · lugar, y subsecciones (p. ej. por ciclo) que se separan con línea punteada.
+const filaDet = i => i.sub !== undefined
+  ? `<div class="drow dsubrow"><input data-f="sub" value="${esc(i.sub)}" placeholder="Subsección (ej.: E. Media, 1° Ciclo)" aria-label="Subsección"><button type="button" class="ibtn sm" data-a="det-del" aria-label="Quitar">${ic('x')}</button></div>`
+  : `<div class="drow"><input data-f="hora" value="${esc(i.hora || '')}" placeholder="Hora" aria-label="Hora" class="dh"><input data-f="curso" value="${esc(i.curso || '')}" placeholder="Curso" aria-label="Curso"><input data-f="act" value="${esc(i.act || '')}" placeholder="Actividad" aria-label="Actividad"><input data-f="lugar" value="${esc(i.lugar || '')}" placeholder="Lugar" aria-label="Lugar"><button type="button" class="ibtn sm" data-a="det-del" aria-label="Quitar">${ic('x')}</button></div>`;
+const editorDet = d => `<div class="detedit"><div class="dhead"><b>Detalle por curso u horario</b><span class="muted sm">Opcional. Si cada curso o ciclo tiene su propio horario, deja vacío el Horario de arriba y agrega una subsección por ciclo.</span></div>
+  <div class="drows">${L.parseDetalle(d).map(filaDet).join('')}</div>
+  <div class="row sm"><button type="button" class="btn sm" data-a="det-add" data-t="item">${ic('plus')} Línea</button><button type="button" class="btn sm" data-a="det-add" data-t="sub">${ic('plus')} Subsección (línea punteada)</button></div>
+  <input type="hidden" name="detalle" value="${esc(d || '')}"></div>`;
+function syncDet(form) { const h = form && form.querySelector('[name=detalle]'); if (!h) return; h.value = L.serializarDetalle([...form.querySelectorAll('.drow')].map(r => { const v = k => (r.querySelector(`[data-f=${k}]`) || {}).value || ''; return r.classList.contains('dsubrow') ? { sub: v('sub') } : { hora: v('hora').trim(), curso: v('curso'), act: v('act'), lugar: v('lugar') }; }).filter(i => i.sub !== undefined ? i.sub.trim() : (i.hora || i.curso || i.act || i.lugar))); }
 function mEvento(id, pre) {
   const e0 = get('eventos', id) || { fecha: ui.fecha, jornada: 'AMBAS', area: 'UTP', seccion: 'ESTUDIANTES', mensual: 'NO', ...pre }, e = { ...e0, seccion: L.seccionDe(e0) };
   if (!ed() && !id) return;
@@ -328,9 +366,9 @@ function mEvento(id, pre) {
     { k: 'titulo', label: 'Actividad', req: 1, ph: 'Ej.: Ensayo SIMCE 4° básicos' }, { k: 'fecha', label: 'Fecha', type: 'date', req: 1, w: 'half' }, { k: 'hora', label: 'Horario', ph: '09:00-10:30 (vacío = sin hora)', w: 'half', max: 20 },
     { k: 'seccion', label: 'Sección en la semana', type: 'seg', options: SEC_OPC },
     { k: 'mensual', label: '¿Aparece en el calendario mensual?', type: 'seg', options: [['SI', 'Sí, es un hito del mes'], ['NO', 'No, solo en la semana']] }], e)}
+    ${editorDet(e.detalle)}
     <button type="button" class="more" data-a="mas-det" aria-expanded="${abrir}">${abrir ? 'Ocultar detalles' : 'Todos los detalles'}${n ? ` <i>${n}</i>` : ''}</button>
     <div class="det" ${abrir ? '' : 'hidden'}>${campos([
-    { k: 'detalle', label: 'Detalle hora a hora (se ve en la semana, el PDF y el parte diario)', type: 'textarea', ph: 'Una línea por horario, por ejemplo:\n08:00 Ingreso estudiantes\n08:30 Ingreso a sala, Matemática\n10:30 Recreo' },
     { k: 'jornada', label: 'Jornada (se ajusta sola al escribir el horario)', type: 'seg', options: [['MANANA', 'Mañana'], ['TARDE', 'Tarde'], ['AMBAS', 'Todo el día']] },
     { k: 'area', label: 'Área', type: 'select', options: Object.keys(L.AREAS).map(a => [a, a === 'Direccion' ? 'Dirección' : a]), w: 'half' }, { k: 'responsable', label: 'Responsable', list: 'dl-func', w: 'half' },
     { k: 'cursos', label: 'Cursos involucrados', ph: 'Ej.: 2° MEDIO A, 4° BÁSICO B · o "Todos" · o un ciclo', hint: 'Los cursos nombrados verán una alerta en su horario.' },
@@ -370,7 +408,8 @@ function mBloque(id, pre) {
 
 // ============ acciones ============
 function guardar(f) {
-  const form = $(`[data-form=${f}]`), o = leerForm(form), id = form.dataset.id;
+  const form0 = $(`[data-form=${f}]`); if (f === 'ev') syncDet(form0);
+  const form = form0, o = leerForm(form), id = form.dataset.id;
   const falta = [...form.querySelectorAll('[required]')].find(el => !el.value.trim()); if (falta) { falta.focus(); return toast('Completa los campos obligatorios', 'err'); }
   if (f === 'ev') { const prev = { ...(get('eventos', id) || { origen: 'App' }) }; delete prev.nota; delete prev.tipo; put('eventos', { ...prev, ...o, id: id || S.uid('EV') }); ui.fecha = o.fecha; if (ui.view === 'calendario') ui.mes = o.fecha.slice(0, 7); }
   else if (f === 'aus') {
@@ -410,6 +449,8 @@ let ultimo = null; // último registro eliminado en modo edición (para Deshacer
 function borrarRapido(t, id) { const r = get(t, id); if (!r) return; ultimo = { t, r }; del(t, id); toast(`Eliminado: ${String(r.titulo || '').slice(0, 40)}`, '', ['Deshacer', 'deshacer']); }
 const A = {
   'modo-edit': () => { ui.edit = !ui.edit; },
+  'det-add': el => { const c = el.closest('.detedit').querySelector('.drows'); c.insertAdjacentHTML('beforeend', filaDet(el.dataset.t === 'sub' ? { sub: '' } : {})); const n = c.lastElementChild.querySelector('input'); if (n) n.focus(); },
+  'det-del': el => el.closest('.drow').remove(),
   'rut-mes': () => { ui.rutMes = !ui.rutMes; },
   'nueva-mat': el => { if (adm()) mCrud('matriz', '', { dia: +el.dataset.d, categoria: 'TALLER_ACLE' }); },
   'mas-det': el => { const d = el.nextElementSibling, ab = d.hidden; d.hidden = !ab; el.setAttribute('aria-expanded', ab); el.firstChild.textContent = ab ? 'Ocultar detalles' : 'Todos los detalles'; if (ab) { const f = d.querySelector('select,input'); if (f && matchMedia('(pointer:fine)').matches) f.focus(); } },
@@ -427,7 +468,7 @@ const A = {
   'edit-mat': el => adm() ? mCrud('matriz', el.dataset.id) : null, 'edit-esp': el => mCrud('espacios', el.dataset.id), 'ver-esp': el => mEspacio(el.dataset.id), crud: el => mCrud(el.dataset.t, el.dataset.id),
   'edit-blq': el => mBloque(el.dataset.id), 'nuevo-blq': el => { const r = L.BLOQUES.find(x => x.c === el.dataset.c); mBloque('', { dia: +el.dataset.d, ini: r.i, fin: r.f, ...(ui.hTab === 'curso' ? { curso_id: ui.curso, sala_id: (get('cursos', ui.curso) || {}).sala_id } : { func_id: ui.func }) }); },
   guardar: el => guardar(el.dataset.f), borrar: el => borrar(el, el.dataset.f),
-  duplicar: () => { const f = $('[data-form=ev]'), o = leerForm(f); put('eventos', { ...o, id: S.uid('EV'), fecha: L.addDias(o.fecha, 7) }); cerrarModal(); toast(`Duplicado al ${L.fechaCorta(L.addDias(o.fecha, 7))}`, 'ok'); },
+  duplicar: () => { const f = $('[data-form=ev]'); syncDet(f); const o = leerForm(f); put('eventos', { ...o, id: S.uid('EV'), fecha: L.addDias(o.fecha, 7) }); cerrarModal(); toast(`Duplicado al ${L.fechaCorta(L.addDias(o.fecha, 7))}`, 'ok'); },
   cubrir: el => { setCob(el.dataset.id, el.dataset.k, el.dataset.n); if ($('#modal-root').firstChild) cerrarModal(); }, descubrir: el => setCob(el.dataset.id, el.dataset.k, ''),
   'cubrir-otro': el => modal('Asignar reemplazo', `<form class="form" data-form="otro" data-id="${el.dataset.id}" data-k="${el.dataset.k}">${campos([{ k: 'n', label: 'Nombre de quien cubre', req: 1, list: 'dl-func', ph: 'Cualquier funcionario o reemplazante externo' }], {})}</form>`, `<span class="grow"></span><button class="btn dark" data-a="ok-otro">Asignar</button>`),
   'ok-otro': () => { const f = $('[data-form=otro]'), n = leerForm(f).n; if (!n) return; setCob(f.dataset.id, f.dataset.k, n); cerrarModal(); },
@@ -466,14 +507,21 @@ document.addEventListener('submit', e => { e.preventDefault(); const f = e.targe
 document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
 initDrag((src, dst) => {
   const [k, id] = src.split(':'), d = dst.split(':');
-  if (k === 'ev' && ed()) { const e = get('eventos', id); if (!e) return; if (d[0] === 'dia' && e.fecha !== d[1]) { put('eventos', { ...e, fecha: d[1] }); toast(`Movido al ${L.fechaCorta(d[1])}`, 'ok'); } else if (d[0] === 'sec' && (e.fecha !== d[1] || L.seccionDe(e) !== d[2])) { put('eventos', { ...e, fecha: d[1], seccion: d[2] }); toast(`Movido a ${L.DIAS[L.dow(d[1])].toLowerCase()} · ${L.SECCIONES[d[2]].toLowerCase()}`, 'ok'); } }
+  if (k === 'ev' && ed()) { const e = get('eventos', id); if (!e) return; if (d[0] === 'dia' && e.fecha !== d[1]) { put('eventos', { ...e, fecha: d[1] }); toast(`Movido al ${L.fechaCorta(d[1])}`, 'ok'); } else if (d[0] === 'sec') { const act = L.seccionDe(e), sec = L.barraDe(act) === d[2] ? act : d[2]; if (e.fecha !== d[1] || sec !== act) { put('eventos', { ...e, fecha: d[1], seccion: sec }); toast(`Movido a ${L.DIAS[L.dow(d[1])].toLowerCase()} · ${L.SECCIONES[sec].toLowerCase()}`, 'ok'); } } }
   else if ((k === 'hc' || k === 'hf') && d[0] === k) swap(k, src, dst);
 });
 
 // ============ arranque ============
 function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
 S.cargarLocal();
-if (S.puedeEditar()) { const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); } // nombres de columnas anteriores
+if (S.puedeEditar()) {
+  const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); // nombres de columnas anteriores
+  let hecho = false; try { hecho = localStorage.getItem('sigutp:mig-nota') === '1'; } catch { }
+  if (!hecho) { // v6: plazos, feriados y cambios de horario pasan a "Nota especial" (una vez; después manda lo que edite el usuario)
+    const notas = all('eventos').filter(e => (e.seccion === 'ESTUDIANTES' || e.seccion === 'FUNCIONARIOS' || !e.seccion) && L.RE_NOTA.test(L.norm(e.titulo))).map(e => ({ ...e, seccion: 'NOTA' }));
+    if (notas.length) S.bulk('eventos', notas); if (all('eventos').length) try { localStorage.setItem('sigutp:mig-nota', '1'); } catch { }
+  }
+}
 S.onChange(() => { $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join(''); pedir(true); });
 window.addEventListener('hashchange', ruta);
 $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join('');

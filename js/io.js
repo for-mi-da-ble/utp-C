@@ -24,12 +24,35 @@ function edificioDe(nombre, sede, tipo) {
 
 /** Detecta qué tipo de libro es y lo importa. Devuelve un resumen legible. */
 export async function importarArchivo(file) {
+  if (/\.csv$/i.test(file.name)) return importarCumpleanos(file);
   const X = await sheetjs(), wb = await leer(file), names = wb.SheetNames;
   if (names.includes('04_Bloques_Horario')) return importarBD(X, wb);
   if (names.some(n => HOJA_DE[n])) return importarUnificada(X, wb);
   if (names.filter(n => /^\d{1,2}$/.test(n.trim())).length >= 3) return importarSemanal(X, wb);
   if (names.some(n => mesDe(n) >= 0)) return importarCalendario(X, wb);
-  throw new Error('No reconozco el formato. Se esperaba la BD de horarios, el Calendario Anual (hojas por mes), el Calendario Semanal (hojas 01, 02…) o la base unificada de SIG-UTP.');
+  throw new Error('No reconozco el formato. Se esperaba la BD de horarios, el Calendario Anual (hojas por mes), el Calendario Semanal (hojas 01, 02…) la base unificada de SIG-UTP o el listado de docentes/asistentes (.csv).');
+}
+// ---- Cumpleaños desde los listados de docentes / asistentes (CSV del Mineduc, separado por ";") ----
+// Minimización de datos: del listado solo se guarda el nombre, el día y el mes. El RUN y el año de nacimiento se descartan.
+async function importarCumpleanos(file) {
+  const buf = await file.arrayBuffer(); let txt;
+  try { txt = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { txt = new TextDecoder('windows-1252').decode(buf); }
+  const filas = txt.split(/\r?\n/).filter(l => l.trim()), cab = (filas.shift() || '').split(';').map(x => x.trim().toUpperCase());
+  const col = re => cab.findIndex(h => re.test(h)), iN = col(/_NOMBRE$/), iP = col(/_PATERNO$/), iM = col(/_MATERNO$/), iF = col(/(FEC_NAC|FECHA_NACIMIENTO)$/);
+  if (iN < 0 || iP < 0 || iF < 0) throw new Error('El CSV no parece un listado de docentes o asistentes (faltan columnas de nombre o fecha de nacimiento).');
+  const existentes = new Map(all('cumpleanos').map(c => [norm(c.nombre), c])), nuevos = new Map(); let leidos = 0, sinFecha = 0;
+  for (const l of filas) {
+    const c = l.split(';'), m = /^(\d{1,2})[/-](\d{1,2})[/-]\d{2,4}$/.exec((c[iF] || '').trim()); leidos++;
+    if (!m) { sinFecha++; continue; }
+    const nombre = tituloCaso([(c[iN] || '').trim().split(/\s+/)[0], c[iP], iM >= 0 ? c[iM] : ''].map(x => (x || '').trim()).filter(Boolean).join(' '));
+    const dia = +m[1], mes = +m[2]; if (!nombre || !(dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12)) { sinFecha++; continue; }
+    const prev = existentes.get(norm(nombre)) || nuevos.get(norm(nombre));
+    nuevos.set(norm(nombre), { id: prev ? prev.id : uid('CU'), nombre, dia, mes });
+  }
+  const filasOk = [...nuevos.values()], antes = filasOk.filter(c => existentes.has(norm(c.nombre))).length;
+  if (!filasOk.length) throw new Error('No se encontraron fechas de nacimiento válidas en el archivo.');
+  bulk('cumpleanos', filasOk);
+  return `Cumpleaños cargados: ${filasOk.length - antes} nuevos y ${antes} actualizados (de ${leidos} filas${sinFecha ? `, ${sinFecha} sin fecha válida` : ''}). Solo se guardó nombre, día y mes.`;
 }
 // "NOV", "SEPT", "MARZO" o "NOVIEMBRE 2026" -> índice de mes
 function mesDe(nombre) { const n = norm(nombre).replace(/[^a-z]/g, ''); return n.length < 3 ? -1 : MESES.findIndex(m => { const k = norm(m); return k.startsWith(n) || n.startsWith(k); }); }
@@ -229,14 +252,14 @@ const LEEME = [
   ['Para actualizarlo: Ajustes → Descargar base unificada (hazlo como respaldo cada cierto tiempo).'], [''],
   ['HOJAS DE DATOS (se pueden editar en Excel respetando los encabezados):'],
   ['01_Semanas_Clases', 'Semanas lectivas. tipo = LECTIVA o RECESO (los recesos no cuentan en la numeración).'],
-  ['02_Eventos_Calendario', 'Todos los eventos. mensual = SI si aparece en el calendario MENSUAL (los hitos del calendario anual) o NO si es solo de la semana. detalle = lo que ocurre hora a hora (una línea por horario, ej. "08:30 Ingreso a sala"), visible solo en la semana, el PDF y el parte diario. seccion = ESTUDIANTES, FUNCIONARIOS o EXTERNAS. jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE. origen = de dónde vino.'],
+  ['02_Eventos_Calendario', 'Todos los eventos. mensual = SI si aparece en el calendario MENSUAL (los hitos del calendario anual) o NO si es solo de la semana. detalle = lo que ocurre hora a hora (una línea por horario, ej. "08:30 Ingreso a sala"), visible solo en la semana, el PDF y el parte diario. seccion = ESTUDIANTES, NOTA (nota especial: plazos, feriados, cambios de horario), FUNCIONARIOS o EXTERNAS. En detalle, una línea "== E. Media" es una subsección (línea punteada) y una línea "08:10 | 2° Medio A | Acto | Gimnasio" es hora | curso | actividad | lugar. jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE. origen = de dónde vino.'],
   ['03_Ausencias_Reemplazos', 'Ausencias y quién cubre cada bloque (columna cobertura: la administra la app).'],
   ['04_Funcionarios', 'Docentes y equipo PIE. No incluye RUT.'],
   ['05_Espacios_Edificios', 'edificio = ED_MATRIZ, ED_CICLO_MENOR, ED_PIE o ED_COMUNES.'],
   ['06_Cursos', 'El id es el nombre del curso. jornada = MANANA o TARDE.'],
   ['07_Matriz_Fija_Semanal', 'categoria = TALLER_ACLE, REFORZAMIENTO o REUNION_FIJA. dia = 1 (lunes) a 5 (viernes).'],
   ['08_Bloques_Docentes', 'Horario de cada funcionario por bloque. De aquí salen los horarios de cursos, la sábana y la cobertura. tipo = CLASE, CODOC, NOLECT, AULAREC, COLAB, COLACION, TURNO, CONSEJO, LINEAL, DEPTO, COORD, GESTION, APOD, ACLE.'],
-  ['09_Cumpleanos', 'Cumpleaños de funcionarios: nombre, dia (1-31) y mes (1-12). Sin año.'], [''],
+  ['09_Cumpleanos', 'Cumpleaños de funcionarios: nombre, dia (1-31) y mes (1-12). Sin año ni RUN. Se cargan desde los listados de docentes y asistentes del Mineduc (.csv) en Ajustes → Agregar desde archivos originales.'], [''],
   ['REGLAS AL EDITAR A MANO:'],
   ['• No cambies la columna id ni los nombres de las hojas o encabezados. Para agregar una fila, inventa un id nuevo que no se repita.'],
   ['• Fechas como texto AAAA-MM-DD (ej.: 2026-11-12) y horas como texto HH:MM (ej.: 08:45).'],

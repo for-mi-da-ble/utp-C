@@ -229,7 +229,10 @@ export function fusionar(a, b) {
 }
 
 // ---------- secciones del calendario semanal (como la planilla del colegio) ----------
-export const SECCIONES = { ESTUDIANTES: 'Actividades estudiantes', FUNCIONARIOS: 'Actividades funcionarios', EXTERNAS: 'Reuniones y acciones externas' };
+export const SECCIONES = { NOTA: 'Nota especial', ESTUDIANTES: 'Actividades estudiantes', FUNCIONARIOS: 'Actividades funcionarios', EXTERNAS: 'Reuniones externas' };
+/** Barra de la semana en que se muestra cada sección: las notas van con estudiantes y las externas con funcionarios. */
+export const barraDe = sec => sec === 'NOTA' || sec === 'ESTUDIANTES' ? 'ESTUDIANTES' : 'FUNCIONARIOS';
+export const RE_NOTA = /\b(plazo|cambio de horario|horario de salida|horarios de salida|jornada reducida|salida anticipada|suspension de clases|sin clases|feriado|interferiado|ultimo dia de clases|termino de clases|receso)\b/;
 const RE_EXT = /\b(red (de )?(directores|utp|pie|ingles|colegios|cra)|red utp|red directores|slep|seremi|mineduc|deprov|comision local|seminario|jornada (pme|usm)|microcentro)\b/;
 const RE_FUNC = /\b(consejo|coordinador|acompanamiento|autocuidado|capacitacion|calendario (de )?ev|cierre (de )?(notas|actas)|plazo|revision (de )?libro|informes? de|calificacion|planificacion|equipo de gestion|eq\.? gestion|docentes?|profes\b|ingreso profesores|asistentes de la educacion|dia del profesor|evaluacion docente|hito entrega)/;
 /** Sección de un evento: la guardada o, si no tiene, una deducida de su origen y su título. */
@@ -237,8 +240,39 @@ export function seccionDe(e) {
   if (e.seccion && SECCIONES[e.seccion]) return e.seccion;
   const origen = e.origen || e.tipo || '';
   if (origen === 'Reunión externa') return 'EXTERNAS';
-  const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS';
+  const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS'; if (RE_NOTA.test(t)) return 'NOTA';
   if (/^calendario (anual \+ )?semanal/i.test(origen)) return 'ESTUDIANTES'; // en la planilla semanal venían bajo "Actividades estudiantes"
   if (/reunion/.test(t) && !/apoderad/.test(t)) return 'FUNCIONARIOS';
   return RE_FUNC.test(t) && !/estudiantes?\b/.test(t.replace(/profes y estudiantes/, '')) ? 'FUNCIONARIOS' : 'ESTUDIANTES';
 }
+
+// ---------- detalle con subsecciones ----------
+// Formato guardado en `detalle` (una línea por elemento, legible en Excel):
+//   == E. Media                         → subsección (se dibuja separada con línea punteada)
+//   08:10 | 2° Medios | Acto | Gimnasio  → hora | curso | actividad | lugar (cualquiera puede ir vacío)
+//   08:00 Ingreso estudiantes            → forma simple: hora + actividad
+const RE_CICLO = /^(e\.?\s*media|ense[nñ]anza media|(1|2|primer|segundo)\s*[°ºª]?\s*ciclo|primer ciclo|segundo ciclo|p[aá]rvulos?|ed\.?\s*parvularia|educaci[oó]n parvularia|todos los ciclos|b[aá]sica)\b[\s:.-]*/i;
+const RE_HORA_INI = /^(\d{1,2}[:.]\d{2}(?:\s*(?:-|–|a)\s*\d{1,2}[:.]\d{2})?)\s*(?:hrs?\.?)?\s*[-–:]?\s*/i;
+export function parseDetalle(texto) {
+  const out = []; let ciclo = '';
+  for (const raw of String(texto || '').split('\n')) {
+    const l = raw.trim(); if (!l) continue;
+    if (/^(==|##)/.test(l)) { out.push({ sub: l.replace(/^(==|##)\s*/, '') }); ciclo = ''; continue; }
+    if (l.includes('|')) { const [hora = '', curso = '', act = '', lugar = ''] = l.split('|').map(x => x.trim()); out.push({ hora: hora.replace('.', ':'), curso, act, lugar }); continue; }
+    const mh = RE_HORA_INI.exec(l), hora = mh ? mh[1].replace(/\./g, ':').replace(/\s*(-|–|a)\s*/, '-') : '', resto = mh ? l.slice(mh[0].length) : l;
+    const mc = RE_CICLO.exec(resto);
+    if (!hora && mc && resto.length - mc[0].length <= 2) { out.push({ sub: resto.replace(/[\s:.-]+$/, '') }); ciclo = ''; continue; } // línea que solo nombra un ciclo
+    if (hora && mc && resto.length > mc[0].length) { // "08:00-08:15 E. Media 4° Medio": el ciclo pasa a ser subsección
+      const c = mc[0].replace(/[\s:.-]+$/, ''); if (norm(c) !== norm(ciclo)) { out.push({ sub: c }); ciclo = c; }
+      out.push({ hora, curso: '', act: resto.slice(mc[0].length).trim(), lugar: '' }); continue;
+    }
+    out.push({ hora, curso: '', act: resto, lugar: '' });
+  }
+  return out;
+}
+export function serializarDetalle(items) {
+  return items.map(i => i.sub !== undefined ? (i.sub.trim() ? '== ' + i.sub.trim() : '') : (i.curso || i.lugar) ? [i.hora, i.curso, i.act, i.lugar].map(x => (x || '').trim()).join(' | ') : [i.hora, i.act].map(x => (x || '').trim()).filter(Boolean).join(' '))
+    .filter(Boolean).join('\n');
+}
+/** Texto de un elemento: curso y actividad, con el lugar entre paréntesis después de lo último. */
+export function textoItem(i) { const a = [i.curso, i.act].filter(Boolean).join(' · '); return i.lugar ? (a ? `${a} (${i.lugar})` : `(${i.lugar})`) : a; }

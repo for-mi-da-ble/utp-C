@@ -214,3 +214,41 @@ h1 { color: var(--navy); }
 .agenda { list-style: none; margin: 5px 0 0; padding: 4px 0 0; border-top: 1px dashed rgba(32, 64, 112, .18); font-size: 12px; line-height: 1.35; color: #3a4558; }
 .agenda li { padding: 1px 0; } .agenda b { font-weight: 600; color: var(--navy); margin-right: 3px; }
 .ev .tag.mes { font-size: 10px; padding: 1px 6px; }
+
+/* ===== semana: barras de sección a lo ancho y burbujas por tipo ===== */
+.wk2 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.wk2 > .wk-d, .wk2 > .wk-cell { border-right: 1px solid var(--line); } .wk2 > :nth-child(6n + 5) { border-right: 0; } /* 5 días + 1 barra por fila */
+.wk2 .wk-d { border-bottom: 1px solid var(--line); }
+.secbar { grid-column: 1 / -1; background: var(--navy); color: #fff; font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; padding: 8px 14px; border-top: 3px solid var(--gold); }
+.wk2 .wk-cell { padding: 8px 8px 38px; min-height: 90px; position: relative; }
+/* colores pedidos: nota rojo pálido · cumpleaños naranja · estudiantes azul · funcionarios amarillo pálido · externas gris · reforzamiento amarillo · talleres celeste */
+.k-nota { --bg: #fde6e6; --bd: #e05a5a; --tx: #8c1d1d; } .k-cum { --bg: #ffe2c2; --bd: #f08a24; --tx: #7a3b00; }
+.k-est { --bg: #e1eafa; --bd: #2f62c4; --tx: #18346e; } .k-func { --bg: #fdf6d6; --bd: #d6b43a; --tx: #5f4b00; }
+.k-ext { --bg: #eceef1; --bd: #8a919e; --tx: #3b414c; } .k-ref { --bg: #fff0a3; --bd: #e2b600; --tx: #5c4700; } .k-tal { --bg: #dcf2fb; --bd: #2aa3d6; --tx: #0d4f6b; }
+.semana .ev, .ev[class*=" k-"] { background: var(--bg); border-left: 4px solid var(--bd); color: var(--tx); }
+.semana .ev b, .ev[class*=" k-"] b { color: var(--tx); }
+.ev.grp .gt { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; margin-bottom: 3px; opacity: .85; }
+.ev.grp .gl { display: block; width: 100%; text-align: left; font-size: 12.5px; line-height: 1.3; padding: 2px 0; color: var(--tx); cursor: pointer; border-top: 1px solid rgba(0, 0, 0, .06); }
+.ev.grp .gl:first-of-type { border-top: 0; } .ev.grp .gl[data-a=nada] { cursor: default; } .ev.grp .gl b { font-weight: 600; } .ev.grp .lug { opacity: .75; }
+.ev.grp .gl .det { margin-top: 2px; }
+.det { margin-top: 5px; font-size: 12px; line-height: 1.35; }
+.det .dit { padding: 1px 0; } .det .dit b { font-weight: 600; margin-right: 2px; }
+.det .dsub { margin: 5px 0 2px; padding-top: 4px; border-top: 1.5px dashed currentColor; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .9; }
+.det .dsub:first-child { margin-top: 2px; }
+.semleg { margin-top: 10px; } .semleg .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--bg); border-left: 4px solid var(--bd); display: inline-block; }
+@media (max-width: 760px) {
+  .wk2 { display: block; } .wk2 .wk-d { display: none; } .secbar { border-radius: 0; }
+  .wk2 .wk-cell { border-right: 0; border-bottom: 1px solid var(--line); min-height: 0; padding: 12px 12px 14px; }
+  .wk2 .dlbl { display: block; font-size: 12px; font-weight: 600; color: var(--navy-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .wk2 .add { top: 8px; bottom: auto; opacity: 1; }
+}
+/* editor del detalle (subsecciones) */
+.detedit { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 16px; padding: 12px; background: #f8fafc; }
+.detedit .dhead { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; } .detedit .dhead b { font-size: 13.5px; font-weight: 600; color: var(--navy); }
+.drows { display: grid; gap: 6px; }
+.drow { display: grid; grid-template-columns: 92px 1fr 1.4fr 1fr 30px; gap: 6px; align-items: center; }
+.drow input { min-height: 38px; padding: 7px 10px; border-radius: 10px; font-size: 13.5px; }
+.drow.dsubrow { grid-template-columns: 1fr 30px; padding-top: 8px; border-top: 2px dashed #b7c3d6; margin-top: 4px; } .drow.dsubrow input { font-weight: 600; color: var(--navy); }
+@media (max-width: 760px) { .drow { grid-template-columns: 1fr 1fr 30px; } .drow .dh { grid-column: 1 / 2; } }
+
+.toast { border-radius: 18px; line-height: 1.35; }
