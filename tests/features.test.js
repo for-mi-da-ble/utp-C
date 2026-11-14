@@ -33,16 +33,16 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
     const z = await p.locator('[data-drop="dia:2026-11-20"]').boundingBox(); await p.mouse.move(z.x + 40, z.y + 30, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(150); }
   assert.equal((await ev('PAES 4')).fecha, '2026-11-20'); assert.equal(await p.locator('.modal').count(), 0, 'soltar no debe abrir modal'); console.log('✓ arrastrar evento entre días (mes)');
   // Semana: mover a otro día y jornada
-  await p.goto(U + '/#semana'); await arrastrar(p.locator('.ev', { hasText: 'Trabün' }), p.locator('[data-drop="cel:2026-11-13:TARDE"]'));
-  const t = await ev('Trabün'); assert.equal(t.fecha, '2026-11-13'); assert.equal(t.jornada, 'TARDE'); console.log('✓ arrastrar entre días y Mañana/Tarde (semana)');
+  await p.goto(U + '/#semana'); await arrastrar(p.locator('.ev', { hasText: 'Trabün' }), p.locator('[data-drop="sec:2026-11-13:FUNCIONARIOS"]'));
+  const t = await ev('Trabün'); assert.equal(t.fecha, '2026-11-13'); assert.equal(t.seccion, 'FUNCIONARIOS'); console.log('✓ arrastrar entre días y secciones (semana)');
   await p.fill('[data-k=foco]', 'Cierre de promedios'); await p.keyboard.press('Tab'); await p.waitForTimeout(100); assert.equal((await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:semanas')).find(w => w.inicio === '2026-11-09'))).foco, 'Cierre de promedios'); console.log('✓ foco semanal editable');
   // Horario: swap de bloques
   await p.goto(U + '/#horarios'); await p.click('[data-a=ciclo][data-v="Enseñanza Media"]'); await p.click('[data-a=curso][data-v="2° MEDIO B"]'); await p.waitForSelector('[data-a=curso][data-v="2° MEDIO B"].on'); await p.waitForTimeout(100);
   const txt = s => p.locator(`[data-drop="${s}"] .hb b`).first().textContent(); const a0 = await txt('hc:M1:1'), b0 = await txt('hc:M3:2');
   await arrastrar(p.locator('[data-drag="hc:M1:1"]'), p.locator('[data-drop="hc:M3:2"]')); await p.waitForTimeout(150); assert.equal(await txt('hc:M1:1'), b0); assert.equal(await txt('hc:M3:2'), a0); console.log(`✓ swap de bloques: ${a0} ⇄ ${b0}`);
   // Táctil: pulsación larga y arrastre
-  const cm = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, storageState: await c.storageState() }), m = await cm.newPage(); await m.clock.install({ time: new Date('2026-11-12T07:55:00') }); await m.goto(U + '/#semana'); await m.waitForSelector('.ev');
-  const cdp = await cm.newCDPSession(m), src = await m.locator('.ev', { hasText: 'Salida pedagógica' }).boundingBox(); await m.locator('[data-drop="cel:2026-11-10:MANANA"]').scrollIntoViewIfNeeded(); const s2 = await m.locator('.ev', { hasText: 'Salida pedagógica' }).boundingBox(), dst = await m.locator('[data-drop="cel:2026-11-10:MANANA"]').boundingBox();
+  const cm = await b.newContext({ viewport: { width: 390, height: 3200 }, hasTouch: true, isMobile: true, storageState: await c.storageState() }), m = await cm.newPage(); await m.clock.install({ time: new Date('2026-11-12T07:55:00') }); await m.goto(U + '/#semana'); await m.waitForSelector('.ev');
+  const cdp = await cm.newCDPSession(m), src = await m.locator('.ev', { hasText: 'Salida pedagógica' }).boundingBox(); await m.locator('[data-drop="sec:2026-11-10:ESTUDIANTES"]').scrollIntoViewIfNeeded(); const s2 = await m.locator('.ev', { hasText: 'Salida pedagógica' }).boundingBox(), dst = await m.locator('[data-drop="sec:2026-11-10:ESTUDIANTES"]').boundingBox();
   const tp = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
   await tp('touchStart', s2.x + 30, s2.y + 10); await m.clock.runFor(450); await tp('touchMove', s2.x + 30, s2.y - 20); await tp('touchMove', dst.x + 40, dst.y + 20); await tp('touchEnd'); await m.waitForTimeout(200);
   const sp = await m.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo.includes('Salida pedagógica'))); assert.equal(sp.fecha, '2026-11-10'); console.log('✓ arrastre táctil con pulsación larga (celular)');

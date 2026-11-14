@@ -181,3 +181,11 @@ textarea.mono { font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; whit
 .dups { display: grid; gap: 6px; margin-top: 12px; } .dup { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; cursor: pointer; }
 .dup input { width: 18px; height: 18px; min-height: 0; margin-top: 2px; flex: none; } .dup .df { flex: none; width: 52px; color: var(--mut); font-size: 12.5px; } .dup small { color: var(--mut); }
 .row.sm { gap: 6px; margin-top: 10px; }
+
+/* semana por secciones */
+.semana .wk-j { text-align: left; padding: 12px 10px; } .semana .wk-j b { font-size: 13.5px; line-height: 1.2; }
+.wk-j.sec-TALLERES, .wk-j.sec-CUMPLE { background: #f0f1f4; } .wk-cell.sec-TALLERES, .wk-cell.sec-CUMPLE { background: #fbfbfc; }
+.semana .wk-cell { min-height: 70px; } .semana .wk-cell .rut { white-space: normal; margin-bottom: 3px; font-size: 11.5px; }
+.semana .wk-cell .chip.cum { margin: 0 4px 4px 0; padding: 6px 10px; min-height: 0; font-size: 12.5px; }
+.evt select { min-height: 30px; height: 30px; padding: 0 6px; font-size: 11.5px; border-radius: 9px; width: auto; max-width: 110px; background: rgba(255, 255, 255, .8); }
+@media (min-width: 761px) { .semana .wk { grid-template-columns: 118px repeat(5, minmax(0, 1fr)); } }

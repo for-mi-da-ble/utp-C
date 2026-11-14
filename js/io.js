@@ -1,6 +1,6 @@
 // Importación / exportación .XLSX (RF-5.1). SheetJS se carga solo cuando se necesita.
 import { all, bulk, uid } from './store.js';
-import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, nombreEspacio, EDIFICIOS } from './logic.js';
+import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, nombreEspacio, EDIFICIOS } from './logic.js';
 
 let cargando;
 export function sheetjs() {
@@ -173,7 +173,7 @@ function importarSemanal(X, wb) {
         let espacio_id = ''; if (e.nota.length === 1 && espacios.has(norm(e.nota[0]))) { espacio_id = espacios.get(norm(e.nota[0])); e.nota = []; }
         const key = fecha + '|' + norm(e.titulo); if (existentes.has(key)) continue; existentes.add(key);
         const cl = clasificar(e.titulo), hr1 = e.hora || (e.nota.map(x => (horaDe(x) || [])[0]).find(Boolean) || '');
-        nuevos.push({ id: uid('EV'), fecha, titulo: e.titulo.slice(0, 200), hora: e.hora, jornada: hr1 ? jornadaDe(hr1) : 'AMBAS', area: e.ext ? 'Direccion' : cl.area, tipo: e.ext ? 'Reunión externa' : 'Calendario semanal', cursos: '', espacio_id, responsable: '', nota: e.nota.join('\n').slice(0, 1500) });
+        nuevos.push({ id: uid('EV'), fecha, titulo: e.titulo.slice(0, 200), hora: e.hora, jornada: hr1 ? jornadaDe(hr1) : 'AMBAS', area: e.ext ? 'Direccion' : cl.area, tipo: e.ext ? 'Reunión externa' : 'Calendario semanal', seccion: e.ext ? 'EXTERNAS' : 'ESTUDIANTES', cursos: '', espacio_id, responsable: '', nota: e.nota.join('\n').slice(0, 1500) });
       }
     }
   }
@@ -193,7 +193,7 @@ function importarSemanal(X, wb) {
 // Una hoja por tabla, con las mismas columnas que la planilla de Google. Es el único archivo que hay que conservar.
 const ESQUEMA = {
   semanas: ['01_Semanas_Clases', ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta', 'foco', 'consejo_tema', 'lineal_cursos']],
-  eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'jornada', 'hora', 'titulo', 'area', 'tipo', 'cursos', 'espacio_id', 'responsable', 'nota']],
+  eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'jornada', 'hora', 'titulo', 'area', 'tipo', 'cursos', 'espacio_id', 'responsable', 'nota', 'seccion']],
   ausencias: ['03_Ausencias_Reemplazos', ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura']],
   funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email']],
   espacios: ['05_Espacios_Edificios', ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado']],
@@ -210,7 +210,7 @@ const LEEME = [
   ['Para actualizarlo: Ajustes → Descargar base unificada (hazlo como respaldo cada cierto tiempo).'], [''],
   ['HOJAS DE DATOS (se pueden editar en Excel respetando los encabezados):'],
   ['01_Semanas_Clases', 'Semanas lectivas. tipo = LECTIVA o RECESO (los recesos no cuentan en la numeración).'],
-  ['02_Eventos_Calendario', 'Todos los eventos (año, semana y día). jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE.'],
+  ['02_Eventos_Calendario', 'Todos los eventos (año, semana y día). seccion = ESTUDIANTES, FUNCIONARIOS o EXTERNAS (fila del calendario semanal). jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE.'],
   ['03_Ausencias_Reemplazos', 'Ausencias y quién cubre cada bloque (columna cobertura: la administra la app).'],
   ['04_Funcionarios', 'Docentes y equipo PIE. No incluye RUT.'],
   ['05_Espacios_Edificios', 'edificio = ED_MATRIZ, ED_CICLO_MENOR, ED_PIE o ED_COMUNES.'],
@@ -268,7 +268,7 @@ function XLSX_escribir(X, vistas) {
   const ANCHO = { titulo: 46, nombre: 34, detalle: 34, nota: 40, cobertura: 30, participantes: 40, equipo_pie: 40, profesor_jefe: 28, cargo: 34, id: 20, foco: 30 };
   for (const t in ESQUEMA) { const [hoja, cols] = ESQUEMA[t];
     const orden = t === 'eventos' || t === 'ausencias' ? (a, b) => String(a.fecha).localeCompare(String(b.fecha)) : t === 'semanas' ? (a, b) => String(a.inicio).localeCompare(String(b.inicio)) : t === 'cursos' ? (a, b) => a.orden - b.orden : t === 'bloques' ? (a, b) => String(a.func_id).localeCompare(String(b.func_id), 'es', { numeric: true }) || a.dia - b.dia || tmin(a.ini) - tmin(b.ini) : (a, b) => String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
-    const aoa = [cols].concat(all(t).slice().sort(orden).map(r => cols.map(k => r[k] == null ? '' : String(r[k]))));
+    const aoa = [cols].concat(all(t).slice().sort(orden).map(r => cols.map(k => k === 'seccion' && t === 'eventos' ? seccionDe(r) : r[k] == null ? '' : String(r[k]))));
     const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = cols.map(k => ({ wch: ANCHO[k] || 14 })); ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(aoa.length - 1, 0), c: cols.length - 1 } }) };
     X.utils.book_append_sheet(wb, ws, hoja); }
   for (const n of vistas.SheetNames) X.utils.book_append_sheet(wb, vistas.Sheets[n], 'VISTA_' + n);

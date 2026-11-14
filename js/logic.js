@@ -210,5 +210,19 @@ export function fusionar(a, b) {
   return { ...a, titulo: String(b.titulo).length > String(a.titulo).length + 3 ? b.titulo : a.titulo, hora,
     jornada: hora ? jornadaDe(hora) : (a.jornada !== 'AMBAS' ? a.jornada : b.jornada || 'AMBAS'), nota: notas.join('\n'),
     espacio_id: a.espacio_id || b.espacio_id || '', cursos: a.cursos || b.cursos || '', responsable: a.responsable || b.responsable || '',
-    area: a.area !== 'UTP' ? a.area : b.area || a.area, tipo: 'Calendario anual + semanal' };
+    area: a.area !== 'UTP' ? a.area : b.area || a.area, seccion: a.seccion || b.seccion || seccionDe(b), tipo: 'Calendario anual + semanal' };
+}
+
+// ---------- secciones del calendario semanal (como la planilla del colegio) ----------
+export const SECCIONES = { ESTUDIANTES: 'Actividades estudiantes', FUNCIONARIOS: 'Actividades funcionarios', EXTERNAS: 'Reuniones y acciones externas' };
+const RE_EXT = /\b(red (de )?(directores|utp|pie|ingles|colegios|cra)|red utp|red directores|slep|seremi|mineduc|deprov|comision local|seminario|jornada (pme|usm)|microcentro)\b/;
+const RE_FUNC = /\b(consejo|coordinador|acompanamiento|autocuidado|capacitacion|calendario (de )?ev|cierre (de )?(notas|actas)|plazo|revision (de )?libro|informes? de|calificacion|planificacion|equipo de gestion|eq\.? gestion|docentes?|profes\b|ingreso profesores|asistentes de la educacion|dia del profesor|evaluacion docente|hito entrega)/;
+/** Sección de un evento: la guardada o, si no tiene, una deducida de su origen y su título. */
+export function seccionDe(e) {
+  if (e.seccion && SECCIONES[e.seccion]) return e.seccion;
+  if (e.tipo === 'Reunión externa') return 'EXTERNAS';
+  const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS';
+  if (/^calendario (anual \+ )?semanal/i.test(e.tipo || '')) return 'ESTUDIANTES'; // en la planilla semanal venían bajo "Actividades estudiantes"
+  if (/reunion/.test(t) && !/apoderad/.test(t)) return 'FUNCIONARIOS';
+  return RE_FUNC.test(t) && !/estudiantes?\b/.test(t.replace(/profes y estudiantes/, '')) ? 'FUNCIONARIOS' : 'ESTUDIANTES';
 }

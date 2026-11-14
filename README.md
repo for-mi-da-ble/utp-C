@@ -73,14 +73,17 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   de jornada, editarla o eliminarla (con *Deshacer*), y marca en amarillo los posibles duplicados del mismo día.
   **PDF carta** descarga el calendario semanal en tamaño carta apaisado para adjuntar al correo.
   **Cumpleaños de la semana**: se agregan con nombre, día y mes (hoja `09_Cumpleanos`), y salen en el boletín y el PDF.
-- **Calendario mensual:** muestra la hora de cada evento (si solo está en el detalle, el rango de horas con "varios horarios")
-  y, en las semanas lectivas, la **rutina semanal** (reuniones fijas, talleres ACLE, reforzamientos) con filtros por tipo.
-  No se muestra en fines de semana, recesos ni días con un evento "Feriado"/"Interferiado".
-- **Eventos:** el formulario pide solo actividad, fecha, horario y jornada; el resto está en *Todos los detalles*.
-  Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
+- **Calendario mensual:** solo actividades específicas, con su hora (si solo está en el detalle, el rango con
+  "varios horarios"). La rutina semanal se puede mostrar opcionalmente con *Mostrar rutina semanal*.
+- **Semana:** ordenada como la planilla del colegio, en filas: *Actividades estudiantes*, *Actividades funcionarios*
+  (incluye las reuniones fijas), *Talleres y reforzamientos*, *Reuniones y acciones externas* y *Cumpleaños*.
+  Cada evento tiene una **sección** (`seccion` = ESTUDIANTES, FUNCIONARIOS o EXTERNAS). Los eventos antiguos sin sección
+  se ubican automáticamente según su origen y título; se corrige arrastrándolos o en *Modo edición*.
+- **Eventos:** el formulario pide solo actividad, fecha, horario y sección; el resto (jornada, área, cursos, espacio,
+  responsable, detalle) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
 - **Limpieza (Ajustes):** *Revisar y fusionar repetidos* une los eventos que aparecen el mismo día en el calendario
   anual y el semanal (deja uno, con el título más completo y la hora y el detalle del semanal).
-- **PDF carta:** siempre una sola hoja carta apaisada. Si una semana viene muy cargada, achica la letra, acorta los
+- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas filas que la vista Semana. Si una semana viene muy cargada, achica la letra, acorta los
   detalles y, como último recurso, indica "+N más" en la celda.
 - **Calendario:** marzo a diciembre; cada evento es independiente y se arrastra entre días. En celular: mantener pulsado y arrastrar.
 - **Horarios:** Ciclo → Curso, por docente/PIE, y sábana comparativa. Muestra alertas de eventos del curso y ausencias de la semana.

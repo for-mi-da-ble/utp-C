@@ -24,13 +24,15 @@ export async function pdfSemana(l) {
   const evItem = e => { const h = L.horaVisible(e); return { k: 'ev', h: h ? txt(h.txt) + (h.varios ? ' (varios)' : '') : '', t: txt(e.titulo), n: [txt([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))].concat(String(e.nota || '').split('\n').map(txt)).filter(Boolean), c: L.AREAS[e.area] || 'blue' }; };
   const RC = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
   const corto = t => txt(t).replace(/^talleres?\s+(de\s+)?/i, '').replace(/^reforzamiento\s+/i, 'Ref. ');
-  const filas = [];
-  for (const [j, n, h] of [['MANANA', 'Mañana', '08:00-13:45'], ['TARDE', 'Tarde', '14:00-19:00']])
-    filas.push({ label: n, sub: h, cells: dias.map(f => L.eventosDe(f).filter(e => j === 'MANANA' ? e.jornada !== 'TARDE' : e.jornada === 'TARDE').map(evItem)) });
+  const filas = [], rl = m => ({ k: 'ln', b: m.ini, t: corto(m.titulo), c: RC[m.categoria] }), deSec = (f, k) => L.eventosDe(f).filter(e => L.seccionDe(e) === k).map(evItem);
+  filas.push({ label: 'Actividades estudiantes', cells: dias.map(f => deSec(f, 'ESTUDIANTES')) });
+  filas.push({ label: 'Actividades funcionarios', cells: dias.map(f => deSec(f, 'FUNCIONARIOS').concat(L.rutinaDe(f, { REUNION_FIJA: 1 }).map(rl))) });
+  const tal = dias.map(f => L.rutinaDe(f, { TALLER_ACLE: 1, REFORZAMIENTO: 1 }).map(rl));
+  if (tal.some(c => c.length)) filas.push({ label: 'Talleres y reforzam.', linea: true, cells: tal });
+  const ext = dias.map(f => deSec(f, 'EXTERNAS')); if (ext.some(c => c.length)) filas.push({ label: 'Reuniones externas', cells: ext });
   const cum = L.cumplesEntre(l, L.addDias(l, 6));
-  if (cum.length) filas.push({ label: 'Cumpleaños', sub: '', linea: true, cells: dias.map((f, i) => cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ k: 'ln', t: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : ''), c: 'pink' }))) });
-  const rut = dias.map(f => L.rutinaDe(f).map(m => ({ k: 'ln', b: m.ini, t: corto(m.titulo), c: RC[m.categoria] })));
-  if (rut.some(c => c.length)) filas.push({ label: 'Rutina semanal', sub: '', linea: true, cells: rut });
+  if (cum.length) filas.push({ label: 'Cumpleaños', linea: true, cells: dias.map((f, i) => cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ k: 'ln', t: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : ''), c: 'pink' }))) });
+  doc.setFont('helvetica', 'bold').setFontSize(7.5); for (const f of filas) { f.ls = doc.splitTextToSize(txt(f.label), LBL - 8); f.minH = 10 + f.ls.length * 8.5; }
 
   // ---- medición ----
   const recorta = (ls, max, ancho) => { if (ls.length <= max) return ls; const r = ls.slice(0, max); let u = r[max - 1]; while (u.length > 1 && doc.getTextWidth(u + '...') > ancho) u = u.slice(0, -1); r[max - 1] = u.replace(/\s+$/, '') + '...'; return r; };
@@ -42,7 +44,7 @@ export async function pdfSemana(l) {
     it.fs = fs; it.hs = hs; it.alto = 2 * PAD + (it.h ? hs * 1.2 : 0) + it.tl.length * fs * 1.12 + it.nl.length * hs * 1.15;
   };
   const altoCelda = (c, extra) => c.reduce((s, it) => s + it.alto + (it.k === 'ev' ? GAP : 0), 0) + (extra || 0);
-  const altoFila = f => Math.max(f.linea ? 14 : 28, ...f.cells.map((c, i) => altoCelda(c, f.mas && f.mas[i] ? f.masH : 0))) + 4;
+  const altoFila = f => Math.max(f.minH, ...f.cells.map((c, i) => altoCelda(c, f.mas && f.mas[i] ? f.masH : 0))) + 4;
 
   // ---- encabezado fijo ----
   const info = [['Foco', w && w.foco], ['Consejo (lunes)', w && w.consejo_tema], ['Reunión lineal (miércoles)', w && w.lineal_cursos]].filter(x => x[1]);
@@ -71,9 +73,8 @@ export async function pdfSemana(l) {
   for (const f of filas) {
     const alto = altoFila(f);
     doc.setFillColor(...(f.linea ? [92, 99, 112] : [22, 24, 29])).roundedRect(M, y, LBL - 4, alto - 2, 4, 4, 'F');
-    doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(f.linea ? 7.5 : 8.5);
-    const ls = doc.splitTextToSize(txt(f.label), LBL - 9); ls.forEach((t, k) => doc.text(t, M + (LBL - 4) / 2, y + 11 + k * 9, { align: 'center' }));
-    if (f.sub) doc.setFont('helvetica', 'normal').setFontSize(6).text(f.sub, M + (LBL - 4) / 2, y + 13 + ls.length * 9, { align: 'center' });
+    doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(7.5);
+    f.ls.forEach((t, k) => doc.text(t, M + (LBL - 4) / 2, y + 10 + k * 8.5, { align: 'center' }));
     f.cells.forEach((c, i) => {
       const x = M + LBL + i * cw; let yy = y + 1;
       if (i) doc.setDrawColor(228, 230, 234).setLineWidth(0.5).line(x, y, x, y + alto - 3);
