@@ -103,8 +103,10 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   área, cursos, espacio, responsable) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
 - **Limpieza (Ajustes):** *Revisar y unir repetidos* une un hito del mensual con la actividad semanal del mismo día y
   nombre: queda el hito (con su nombre) y recibe la hora y el detalle de la semana.
-- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas barras y burbujas que la vista Semana. Pensado para
-  imprimir: las burbujas llevan solo el borde de color (sin relleno) y el interlineado es más amplio.
+- **PDF carta:** una sola hoja carta apaisada con estética de agenda: hora a la izquierda, separadores finos, etiquetas
+  (Nota, ¡Feliz cumpleaños!, PIE, Externa, Ref., Taller), tipografía Outfit y escudo. Mismo orden que la vista Semana;
+  talleres y reforzamientos en sub-filas alineadas. En semanas muy cargadas se compacta (letra, interlineado) antes de
+  ocultar texto; solo como último recurso indica "+N más". Licencia de la tipografía: `vendor/OFL-Outfit.txt`.
 - **Cumpleaños:** hoja `09_Cumpleanos` (nombre, día y mes). Se cargan con los listados de docentes y asistentes del
   Mineduc (.csv) en *Agregar desde archivos originales*; del listado **no se guarda el RUN ni el año de nacimiento**. Si una semana viene muy cargada, achica la letra, acorta los
   detalles y, como último recurso, indica "+N más" en la celda.

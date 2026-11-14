@@ -13,7 +13,7 @@ function jspdf() {
 // Las fuentes estándar del PDF solo cubren Latin-1: se quitan emojis y símbolos fuera de rango.
 const txt = s => String(s == null ? '' : s).replace(/[–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF]/g, '').replace(/[ \t]+/g, ' ').trim();
 // Etiquetas (fondo, texto) por tipo de actividad.
-const P = { nota: [[251, 224, 222], [140, 29, 29], 'Nota'], cum: [[255, 230, 199], [122, 59, 0], 'Cumpleaños'], pie: [[249, 225, 238], [122, 23, 71], 'PIE'],
+const P = { nota: [[251, 224, 222], [140, 29, 29], 'Nota'], cum: [[255, 230, 199], [122, 59, 0], '¡Feliz cumpleaños!'], pie: [[249, 225, 238], [122, 23, 71], 'PIE'],
   ext: [[233, 236, 242], [59, 65, 76], 'Externa'], ref: [[255, 240, 163], [92, 71, 0], 'Ref.'], tal: [[220, 242, 251], [13, 79, 107], 'Taller'] };
 const NAVY = [32, 64, 112], GOLD = [226, 194, 90], INK = [29, 36, 51], MUTE = [92, 106, 128], DET = [59, 69, 88], RULE = [225, 229, 236], DASH = [196, 203, 215];
 
@@ -53,9 +53,10 @@ export async function pdfSemana(l) {
   const deMat = (m, k, quita) => ({ h: horaCol(m.ini), k, t: k ? '' : txt(m.titulo), x: k ? txt(quita ? m.titulo.replace(quita, '') : m.titulo) : '', lug: sala(m), det: [] });
   const agrupa = (ms, k, t, quita) => { if (!ms.length) return []; const h0 = horaCol(ms[0].ini)[0];
     return [{ h: [h0], k, t, x: '', lug: '', det: ms.map(m => ({ b: horaCol(m.ini)[0] === h0 && ms.every(o => o.ini === m.ini) ? '' : horaCol(m.ini)[0], x: txt(m.titulo.replace(quita, '')) + (sala(m) ? ` (${sala(m)})` : '') })) }]; };
-  const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['TALLERES', 'Talleres y reforzamientos']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
+  const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['REF', 'Talleres y reforzamientos'], ['TAL', '']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
     const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), notas = b => evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === b).map(e => deEvento(e, 'nota'));
-    if (barra === 'TALLERES') return [...L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, 'ref', /^reforzamiento\s+/i)), ...L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, 'tal', /^taller(?:es)?\s+(de\s+)?/i))];
+    if (barra === 'REF') return L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, 'ref', /^reforzamiento\s+/i));
+    if (barra === 'TAL') return L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, 'tal', /^taller(?:es)?\s+(de\s+)?/i));
     if (barra === 'ESTUDIANTES') {
       const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : ''));
       return [...notas('ESTUDIANTES'), ...(cs.length ? [{ h: ['Día'], k: 'cum', t: '', x: cs.join(' · '), lug: '', det: [] }] : []), ...de('ESTUDIANTES').map(e => deEvento(e))];
@@ -66,6 +67,7 @@ export async function pdfSemana(l) {
       ...agrupa(reu.filter(m => L.tipoReunion(m) === 'PIE'), 'pie', 'Trabajo colaborativo', /^trabajo colaborativo pie\s*[-–:]?\s*/i),
       ...de('EXTERNAS').map(e => deEvento(e, 'ext'))];
   }) })).filter((f, n) => n < 2 || f.cells.some(c => c.length));
+  if (filas.length > 2 && !filas[2].nombre) filas[2].nombre = 'Talleres y reforzamientos'; // sin reforzamientos: la franja va sobre los talleres
   // dentro de cada celda, por hora (lo de todo el día primero); notas y cumpleaños van siempre arriba
   const clave = it => it.k === 'nota' || it.k === 'cum' ? '0' : /\d/.test(it.h[0]) ? '2' + it.h[0] : '1';
   for (const f of filas) for (const c of f.cells) c.sort((a, b) => clave(a).localeCompare(clave(b)));
@@ -84,7 +86,7 @@ export async function pdfSemana(l) {
       while (u.length && fin() > wd) { const s = u[u.length - 1]; s.t = s.t.slice(0, -1); if (!s.t) u.pop(); } if (u.length) u[u.length - 1].t = u[u.length - 1].t.replace(/[\s·]+$/, '') + '...'; }
     return lineas;
   }
-  const PAD = 3.2, IL = 1.3;
+  let PAD = 3.2, IL = 1.3; // cambian por nivel: solo las semanas muy cargadas se compactan
   const medir = (it, Lv) => {
     const fs = Lv.fs, dfs = fs - 0.9, hc = ancho('b', fs + 0.2, '00:00') + fs * 0.6, tw = cw - hc, pfs = fs - 1.7;
     it.fs = fs; it.dfs = dfs; it.hc = hc; it.pfs = pfs;
@@ -106,10 +108,12 @@ export async function pdfSemana(l) {
   };
   const altoCelda = c => c.reduce((s, it) => s + it.alto, 0) + (c.mas ? 11 : 0);
   const altoFila = f => Math.max(14, ...f.cells.map(altoCelda)), SEC = 15;
-  const TOP = 86, DISP = PIE_Y - 6 - TOP - filas.length * SEC;
-  const NIV = []; for (const fs of [8.8, 8.3, 7.8, 7.3, 6.9, 6.5, 6.1]) NIV.push({ fs, tm: 4, lm: 2 }); NIV.push({ fs: 6.1, tm: 2, lm: 1 }, { fs: 5.7, tm: 2, lm: 1 });
+  const SUBF = 4, TOP = 86, DISP = PIE_Y - 6 - TOP - filas.filter(f => f.nombre).length * SEC - filas.filter(f => !f.nombre).length * SUBF;
+  const NIV = []; for (const fs of [8.8, 8.3, 7.8, 7.3, 6.9, 6.5, 6.1]) NIV.push({ fs, tm: 4, lm: 2, il: 1.3, pad: 3.2 });
+  // antes de ocultar líneas: menos interlineado y relleno, luego menos líneas por texto
+  NIV.push({ fs: 6.1, tm: 3, lm: 2, il: 1.2, pad: 2.4 }, { fs: 5.9, tm: 3, lm: 2, il: 1.12, pad: 1.8 }, { fs: 5.9, tm: 2, lm: 1, il: 1.12, pad: 1.8 }, { fs: 5.6, tm: 2, lm: 1, il: 1.1, pad: 1.6 });
   const total = () => filas.reduce((s, f) => s + altoFila(f), 0);
-  let Lv; for (Lv of NIV) { for (const f of filas) for (const c of f.cells) for (const it of c) medir(it, Lv); if (total() <= DISP) break; }
+  let Lv; for (Lv of NIV) { IL = Lv.il; PAD = Lv.pad; for (const f of filas) for (const c of f.cells) for (const it of c) medir(it, Lv); if (total() <= DISP) break; }
   let ocultos = 0; // último recurso: quitar líneas de detalle (o ítems) de la celda más alta
   for (let guard = 0; total() > DISP && guard < 800; guard++) {
     let best = null; for (const f of filas) for (const c of f.cells) { const h = altoCelda(c); if (c.length && (!best || h > best.h)) best = { c, h }; }
@@ -140,9 +144,11 @@ export async function pdfSemana(l) {
     doc.setDrawColor(...GOLD).setLineWidth(1.9).line(x, 73, x + cw, 73); });
   let y = TOP - 8;
   for (const f of filas) {
-    fuente('b', 6); doc.setCharSpace(1.5).setTextColor(...MUTE).text(txt(f.nombre).toUpperCase(), M, y + 9); const lw = doc.getTextWidth(txt(f.nombre).toUpperCase()); doc.setCharSpace(0);
-    doc.setDrawColor(...DASH).setLineWidth(0.6).setLineDashPattern([2, 1.6], 0).line(M + lw + 6, y + 7, W - M, y + 7).setLineDashPattern([], 0);
-    y += SEC;
+    if (f.nombre) {
+      fuente('b', 6); doc.setCharSpace(1.5).setTextColor(...MUTE).text(txt(f.nombre).toUpperCase(), M, y + 9); const lw = doc.getTextWidth(txt(f.nombre).toUpperCase()); doc.setCharSpace(0);
+      doc.setDrawColor(...DASH).setLineWidth(0.6).setLineDashPattern([2, 1.6], 0).line(M + lw + 6, y + 7, W - M, y + 7).setLineDashPattern([], 0);
+      y += SEC;
+    } else y += SUBF; // sub-fila de talleres: empieza a la misma altura en todos los días
     f.cells.forEach((c, i) => {
       const x = M + i * (cw + GX); let yy = y;
       for (const it of c) {
@@ -167,7 +173,7 @@ export async function pdfSemana(l) {
   // pie: leyenda
   doc.setDrawColor(...RULE).setLineWidth(0.7).line(M, PIE_Y, W - M, PIE_Y);
   let lx = M; const ly = PIE_Y + 12;
-  for (const [k, t] of [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['pie', 'Colaborativo PIE'], ['ext', 'Reunión externa'], ['ref', 'Ref. = Reforzamiento'], ['tal', 'Taller extraescolar']]) lx += pildora(k, lx, ly, 6.2, t) + 5;
+  for (const [k, t] of [['nota', 'Nota especial'], ['cum', '¡Feliz cumpleaños!'], ['pie', 'Colaborativo PIE'], ['ext', 'Reunión externa'], ['ref', 'Ref. = Reforzamiento'], ['tal', 'Taller extraescolar']]) lx += pildora(k, lx, ly, 6.2, t) + 5;
   fuente('n', 6.4); doc.setTextColor(...MUTE).text(txt(`Unidad Técnico-Pedagógica · ${new Date().toLocaleDateString('es-CL')}${ocultos ? ' · semana muy cargada: hay líneas que no caben' : ''}`), W - M, ly, { align: 'right' });
   const nombre = `Calendario_Semanal_${w && w.num ? 'S' + String(w.num).padStart(2, '0') : 'semana'}_${l}.pdf`;
   doc.save(nombre);
