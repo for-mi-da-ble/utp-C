@@ -10,7 +10,7 @@ function jspdf() {
 }
 // Las fuentes estándar del PDF solo cubren Latin-1: se quitan emojis y símbolos fuera de rango.
 const txt = s => String(s == null ? '' : s).replace(/[–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF]/g, '').replace(/[ \t]+/g, ' ').trim();
-const COL = { blue: [47, 107, 255], violet: [124, 92, 255], green: [31, 170, 60], pink: [255, 61, 139], amber: [245, 158, 11], gray: [138, 145, 158] };
+const COL = { blue: [47, 98, 196], violet: [124, 92, 255], green: [31, 170, 60], pink: [255, 61, 139], amber: [245, 158, 11], gray: [138, 145, 158] };
 const TINTE = { blue: [234, 240, 255], violet: [240, 236, 255], green: [229, 246, 233], pink: [255, 233, 241], amber: [255, 244, 219], gray: [240, 241, 244] };
 
 // Diseño de UNA hoja carta apaisada: semana (mañana/tarde) en tarjetas, cumpleaños y rutina semanal en líneas compactas.
@@ -21,7 +21,7 @@ export async function pdfSemana(l) {
   const w = L.semanaDe(l), sem = L.etiquetaSemana(w), rangoTxt = `${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))} de ${l.slice(0, 4)}`, dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i));
 
   // ---- contenido ----
-  const evItem = e => { const h = L.horaVisible(e); return { k: 'ev', h: h ? txt(h.txt) + (h.varios ? ' (varios)' : '') : '', t: txt(e.titulo), n: [txt([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))].concat(String(e.nota || '').split('\n').map(txt)).filter(Boolean), c: L.AREAS[e.area] || 'blue' }; };
+  const evItem = e => { const h = L.horaVisible(e); return { k: 'ev', h: h ? txt(h.txt) + (h.varios ? ' (varios)' : '') : '', t: txt(e.titulo), n: [txt([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))].concat(String(e.detalle || '').split('\n').map(txt)).filter(Boolean), c: L.AREAS[e.area] || 'blue' }; };
   const RC = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
   const corto = t => txt(t).replace(/^talleres?\s+(de\s+)?/i, '').replace(/^reforzamiento\s+/i, 'Ref. ');
   const filas = [], rl = m => ({ k: 'ln', b: m.ini, t: corto(m.titulo), c: RC[m.categoria] }), deSec = (f, k) => L.eventosDe(f).filter(e => L.seccionDe(e) === k).map(evItem);
@@ -59,7 +59,7 @@ export async function pdfSemana(l) {
   }
 
   // ---- dibujo ----
-  doc.setFillColor(22, 24, 29).roundedRect(M, 16, W - 2 * M, 28, 7, 7, 'F');
+  doc.setFillColor(32, 64, 112).roundedRect(M, 16, W - 2 * M, 28, 7, 7, 'F'); doc.setFillColor(240, 192, 48).rect(M + 10, 41.5, 60, 2, 'F');
   doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(13.5).text(txt(`CALENDARIO SEMANAL  ·  ${sem}`), M + 11, 34.5);
   doc.setFont('helvetica', 'normal').setFontSize(9.5).text(txt(rangoTxt), W - M - 11, 29.5, { align: 'right' });
   doc.setFontSize(7.5).text(txt(CFG.COLEGIO || ''), W - M - 11, 39.5, { align: 'right' });
@@ -68,11 +68,11 @@ export async function pdfSemana(l) {
     info.forEach(([k, v], i) => { const x = M + i * iw + 2; doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(107, 114, 128); const kw = doc.getTextWidth(txt(k).toUpperCase() + ':  '); doc.text(txt(k).toUpperCase() + ':', x, y + 9); doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(22, 24, 29); doc.text(recorta(doc.splitTextToSize(txt(v), iw - kw - 8), 1, iw - kw - 8)[0], x + kw, y + 9); });
     y += 15; }
   doc.setFont('helvetica', 'bold').setFontSize(9);
-  dias.forEach((f, i) => { const x = M + LBL + i * cw; doc.setFillColor(238, 240, 243).roundedRect(x + 1, y, cw - 2, 15, 4, 4, 'F'); doc.setTextColor(22, 24, 29).text(txt(`${L.DIAS[i + 1]} ${+f.slice(8)}`), x + cw / 2, y + 10.5, { align: 'center' }); });
+  dias.forEach((f, i) => { const x = M + LBL + i * cw; doc.setFillColor(232, 238, 246).roundedRect(x + 1, y, cw - 2, 15, 4, 4, 'F'); doc.setTextColor(32, 64, 112).text(txt(`${L.DIAS[i + 1]} ${+f.slice(8)}`), x + cw / 2, y + 10.5, { align: 'center' }); });
   y += 18;
   for (const f of filas) {
     const alto = altoFila(f);
-    doc.setFillColor(...(f.linea ? [92, 99, 112] : [22, 24, 29])).roundedRect(M, y, LBL - 4, alto - 2, 4, 4, 'F');
+    doc.setFillColor(...(f.linea ? [50, 82, 130] : [32, 64, 112])).roundedRect(M, y, LBL - 4, alto - 2, 4, 4, 'F');
     doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(7.5);
     f.ls.forEach((t, k) => doc.text(t, M + (LBL - 4) / 2, y + 10 + k * 8.5, { align: 'center' }));
     f.cells.forEach((c, i) => {

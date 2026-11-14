@@ -6,7 +6,7 @@
  */
 var TABLAS = {
   semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta', 'foco', 'consejo_tema', 'lineal_cursos'],
-  eventos: ['id', 'fecha', 'jornada', 'hora', 'titulo', 'area', 'tipo', 'cursos', 'espacio_id', 'responsable', 'nota', 'seccion'],
+  eventos: ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen'],
   ausencias: ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura'],
   funcionarios: ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email'],
   cursos: ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie'],

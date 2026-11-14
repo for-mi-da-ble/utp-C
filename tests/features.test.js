@@ -17,12 +17,12 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
     X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(nov), 'NOV');
     X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['DICIEMBRE'], ['2026-12-01', '2026-12-02'], ['Licenciatura 4° medios 19:00', 'Cierre año lectivo']]), 'DICIEMBRE'); return X.write(wb, { type: 'base64', bookType: 'xlsx' }); });
   require('fs').writeFileSync(cal, Buffer.from(b64, 'base64'));
-  console.log('✓', await imp(cal, 'Calendario anual importado'));
+  console.log('✓', await imp(cal, 'Calendario anual cargado'));
   const evs = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos'))); const por = t => evs.find(e => e.titulo.includes(t));
   assert.equal(evs.length, 15, 'eventos: ' + evs.map(e => e.fecha + ' ' + e.titulo).join(' | ')); assert.equal(por('SIMCE').fecha, '2026-11-04', 'fecha sobrescrita con texto se infiere'); assert.equal(por('Reunión PIE').fecha, '2026-11-04'); assert.equal(por('Reunión PIE').area, 'PIE'); assert.equal(por('Reunión PIE').hora, '15:00-16:00'); assert.equal(por('Reunión PIE').jornada, 'TARDE');
   assert.equal(por('pulgas').fecha, '2026-11-04', 'segunda columna del día'); assert.equal(por('Todos los Santos').fecha, '2026-11-01', 'efeméride junto a la fecha'); assert.equal(por('Entrega de notas').fecha, '2026-11-03'); assert.equal(por('PAES 4').fecha, '2026-11-09'); assert.equal(por('Trabün').fecha, '2026-11-12'); assert.equal(por('PAES regular').fecha, '2026-11-30'); assert(!por('Notes') && !por('DIA CIERRE'), 'notas al pie fuera'); assert.equal(por('Licenciatura').fecha, '2026-12-01'); assert.equal(por('ajedrez').area, 'ACLE');
-  console.log('✓ cada línea de celda = un evento, con fecha, área y jornada correctas');
-  assert((await imp(cal, 'No se encontraron')).includes('No se encontraron')); console.log('✓ reimportar no duplica');
+  assert(evs.every(e => e.mensual === 'SI' && e.origen === 'Calendario anual')); console.log('✓ cada línea de celda = un hito del mensual, con fecha, área y jornada correctas');
+  assert((await imp(cal, 'Calendario anual cargado')).includes('0 nuevos')); assert.equal((await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).length)), 15); console.log('✓ volver a cargar el anual no duplica (sincroniza)');
   // Arrastrar evento en calendario mensual (mouse)
   const arrastrar = async (from, to) => { await from.waitFor(); await to.waitFor(); await p.waitForTimeout(80); const a = await from.boundingBox(), z = await to.boundingBox(); await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down(); await p.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 3 }); await p.mouse.move(z.x + z.width / 2, z.y + Math.min(z.height - 12, 30), { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(150); };
   const ev = t => p.evaluate(t => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo.includes(t)), t);

@@ -1,5 +1,7 @@
 # SIG-UTP · Plataforma de Gestión Técnico-Pedagógica
 
+Colores institucionales del Colegio Marina de Chile (azul marino `#204070` y dorado `#f0c030`, tomados de colegiomarinadechile.cl).
+
 Calendario multi-escala (año · semana · día · bloque), cobertura docente, horarios y espacios para la UTP.
 Costo de operación: **$0** (GitHub Pages + Google Sheets + Google Apps Script).
 
@@ -73,16 +75,28 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   de jornada, editarla o eliminarla (con *Deshacer*), y marca en amarillo los posibles duplicados del mismo día.
   **PDF carta** descarga el calendario semanal en tamaño carta apaisado para adjuntar al correo.
   **Cumpleaños de la semana**: se agregan con nombre, día y mes (hoja `09_Cumpleanos`), y salen en el boletín y el PDF.
+- **Calendario mensual:** muestra solo los **hitos** (`mensual = SI`), que son los eventos del Calendario Anual, cada uno
+  como un bloque con su nombre. Cargar de nuevo el Calendario Anual **sincroniza** el mensual con el archivo: agrega lo nuevo,
+  quita lo eliminado y conserva el detalle semanal de lo que sigue igual. La rutina semanal se puede mostrar con un botón.
+- **Hito vs. detalle:** un mismo evento se ve distinto según la vista. *SIMCE II° medio* es un bloque en el mensual y, en la
+  semana, el PDF y el parte diario, despliega su `detalle` hora a hora (una línea por horario: `08:30 Ingreso a sala`).
+  Las actividades que solo existen en la semana tienen `mensual = NO`.
+- **Semana:** numeración por Semana de Clases oficial (los recesos no cuentan), foco, consejo y reunión lineal editables,
+  eventos arrastrables entre días y entre Mañana/Tarde, matriz permanente al pie, boletín del viernes.
+  **Modo edición** (botón en la cabecera): cada actividad muestra controles de un clic para moverla de día (◀ ▶), cambiarla
+  de jornada, editarla o eliminarla (con *Deshacer*), y marca en amarillo los posibles duplicados del mismo día.
+  **PDF carta** descarga el calendario semanal en tamaño carta apaisado para adjuntar al correo.
+  **Cumpleaños de la semana**: se agregan con nombre, día y mes (hoja `09_Cumpleanos`), y salen en el boletín y el PDF.
 - **Calendario mensual:** solo actividades específicas, con su hora (si solo está en el detalle, el rango con
   "varios horarios"). La rutina semanal se puede mostrar opcionalmente con *Mostrar rutina semanal*.
 - **Semana:** ordenada como la planilla del colegio, en filas: *Actividades estudiantes*, *Actividades funcionarios*
   (incluye las reuniones fijas), *Talleres y reforzamientos*, *Reuniones y acciones externas* y *Cumpleaños*.
   Cada evento tiene una **sección** (`seccion` = ESTUDIANTES, FUNCIONARIOS o EXTERNAS). Los eventos antiguos sin sección
   se ubican automáticamente según su origen y título; se corrige arrastrándolos o en *Modo edición*.
-- **Eventos:** el formulario pide solo actividad, fecha, horario y sección; el resto (jornada, área, cursos, espacio,
-  responsable, detalle) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
-- **Limpieza (Ajustes):** *Revisar y fusionar repetidos* une los eventos que aparecen el mismo día en el calendario
-  anual y el semanal (deja uno, con el título más completo y la hora y el detalle del semanal).
+- **Eventos:** el formulario pide solo actividad, fecha, horario, sección y si aparece en el mensual; el resto (detalle hora a hora, jornada,
+  área, cursos, espacio, responsable) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
+- **Limpieza (Ajustes):** *Revisar y unir repetidos* une un hito del mensual con la actividad semanal del mismo día y
+  nombre: queda el hito (con su nombre) y recibe la hora y el detalle de la semana.
 - **PDF carta:** siempre una sola hoja carta apaisada, con las mismas filas que la vista Semana. Si una semana viene muy cargada, achica la letra, acorta los
   detalles y, como último recurso, indica "+N más" en la celda.
 - **Calendario:** marzo a diciembre; cada evento es independiente y se arrastra entre días. En celular: mantener pulsado y arrastrar.

@@ -77,14 +77,18 @@ function vHoy() {
 const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${Object.entries(L.SECCIONES).map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n.replace('Actividades ', '').replace('Reuniones y acciones externas', 'Externas')}</option>`).join('')}</select><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
 const RUT_K = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
 const rutChip = m => `<div class="rut ${RUT_K[m.categoria]}" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'} title="${esc(`${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' · ' + L.nombreEspacio(m.sala_id) : ''}`)}"><b>${m.ini}</b> ${esc(m.titulo)}</div>`;
-const evChip = (e, edit, dup) => `<div class="ev ${L.AREAS[e.area] || 'blue'} ${dup === true ? 'dup' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}" ${e.nota ? `title="${esc(String(e.nota).slice(0, 400))}"` : ''}>${(h => h ? `<span class="evh">${esc(h.txt)}${h.varios ? ' <i>· varios horarios</i>' : ''}</span>` : '')(L.horaVisible(e))}<b>${esc(e.titulo)}</b>${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id || e.nota ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id), e.nota && String(e.nota).split('\n').join(' · ')].filter(Boolean).join(' · ').slice(0, 140))}</small>` : ''}${edit === true ? evTools(e) : ''}</div>`;
+// Detalle por hora: cada línea "08:30 Ingreso a sala" se muestra con la hora destacada.
+const agenda = d => String(d || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => { const m = /^(\d{1,2}[:.]\d{2}(?:\s*[-–a]\s*\d{1,2}[:.]\d{2})?)\s*(.*)$/.exec(x); return `<li>${m ? `<b>${esc(m[1].replace('.', ':'))}</b> ${esc(m[2])}` : esc(x)}</li>`; }).join('');
+const horaEnTitulo = e => !!e.hora && String(e.titulo).replace('.', ':').includes(String(e.hora).slice(0, 5)); // "11:40 Carta de amor": no repetir la hora
+const evChip = (e, edit, dup, mes) => mes ? `<div class="ev ${L.AREAS[e.area] || 'blue'}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}" ${e.detalle ? `title="${esc(String(e.detalle).slice(0, 400))}"` : ''}>${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b></div>`
+  : `<div class="ev ${L.AREAS[e.area] || 'blue'} ${dup === true ? 'dup' : ''} ${L.enMensual(e) ? 'hito' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${(h => h && !horaEnTitulo(e) ? `<span class="evh">${esc(h.txt)}${h.varios ? ' <i>· varios horarios</i>' : ''}</span>` : '')(L.horaVisible(e))}<b>${esc(e.titulo)}</b>${L.enMensual(e) ? '<i class="tag mes" title="También aparece en el calendario mensual">mensual</i>' : ''}${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))}</small>` : ''}${e.detalle ? `<ul class="agenda">${agenda(e.detalle)}</ul>` : ''}${edit === true ? evTools(e) : ''}</div>`;
 
 function parteDiario(f) {
   const r = L.resumenDia(f), w = L.semanaDe(f), ln = [`PARTE DIARIO UTP — ${CFG.COLEGIO || ''}`, `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, ''];
   let html = `<p><b>Parte diario UTP — ${esc(CFG.COLEGIO || '')}</b><br>${esc(L.fechaLarga(f))} · ${esc(L.etiquetaSemana(w))}</p>`;
   ln.push('ACTIVIDADES DEL DÍA'); html += '<p><b>Actividades del día</b></p><ul>';
   if (!r.eventos.length) { ln.push('• Sin actividades programadas.'); html += '<li>Sin actividades programadas.</li>'; }
-  for (const e of r.eventos) { const t = `${e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada')} · ${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`; const nt = e.nota ? String(e.nota).split('\n') : []; ln.push('• ' + t, ...nt.map(x => '     ' + x)); html += `<li>${esc(t)}${nt.length ? '<br><small>' + nt.map(esc).join('<br>') + '</small>' : ''}</li>`; }
+  for (const e of r.eventos) { const t = `${e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada')} · ${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`; const nt = e.detalle ? String(e.detalle).split('\n') : []; ln.push('• ' + t, ...nt.map(x => '     ' + x)); html += `<li>${esc(t)}${nt.length ? '<br><small>' + nt.map(esc).join('<br>') + '</small>' : ''}</li>`; }
   ln.push('', 'AUSENCIAS Y REEMPLAZOS'); html += '</ul><p><b>Ausencias y reemplazos</b></p>';
   if (!r.aus.length) { ln.push('• Sin ausencias informadas.'); html += '<p>Sin ausencias informadas.</p>'; }
   else {
@@ -154,11 +158,11 @@ function vSemana() {
      <p class="muted sm">Las reuniones fijas y los talleres y reforzamientos son la <b>rutina semanal</b>: se repiten cada semana lectiva${adm() ? ' y se editan tocándolos (o en Ajustes → Matriz fija)' : ''}.</p>`;
 }
 function mDuplicados() {
-  const p = L.paresDuplicados(); if (!p.length) return toast('No hay eventos repetidos entre el calendario anual y el semanal', 'ok');
-  modal(`Eventos repetidos (${p.length})`, `<p class="muted sm">Estos eventos aparecen el mismo día en el calendario anual y en el semanal. Al fusionarlos queda <b>uno solo</b>, con el título más completo y la hora y el detalle del semanal. Desmarca los que no sean el mismo evento.</p>
+  const p = L.paresDuplicados(); if (!p.length) return toast('No hay hitos del mensual repetidos en la semana', 'ok');
+  modal(`Eventos repetidos (${p.length})`, `<p class="muted sm">Cada par es un hito del calendario mensual y una actividad de la semana con el mismo nombre y día. Al unirlos queda <b>uno solo</b>: en el mensual se ve como un bloque con el nombre del hito, y en la semana lleva la hora y el detalle de la actividad. Desmarca los que no sean el mismo evento.</p>
     <div class="row sm"><button class="btn sm" data-a="dup-todos" data-v="1">Marcar todos</button><button class="btn sm" data-a="dup-todos" data-v="0">Desmarcar todos</button></div>
-    <div class="dups">${p.map(([a, b]) => `<label class="dup"><input type="checkbox" checked data-par="${a.id}|${b.id}"><span class="df">${L.fechaCorta(a.fecha)}</span><span><b>${esc(a.titulo)}</b> <small>anual</small><br>${esc(b.titulo)} <small>semanal${b.hora ? ' · ' + esc(b.hora) : ''}</small></span></label>`).join('')}</div>`,
-    `<span class="grow"></span><button class="btn dark" data-a="ok-dup">Fusionar marcados</button>`, 'wide');
+    <div class="dups">${p.map(([a, b]) => `<label class="dup"><input type="checkbox" checked data-par="${a.id}|${b.id}"><span class="df">${L.fechaCorta(a.fecha)}</span><span><b>${esc(a.titulo)}</b> <small>mensual</small><br>${esc(b.titulo)} <small>semana${b.hora ? ' · ' + esc(b.hora) : ''}</small></span></label>`).join('')}</div>`,
+    `<span class="grow"></span><button class="btn dark" data-a="ok-dup">Unir marcados</button>`, 'wide');
 }
 function mCumple(id, f) {
   if (!ed()) return; const base = f || ui.fecha, c = get('cumpleanos', id) || { dia: +base.slice(8), mes: +base.slice(5, 7) };
@@ -174,12 +178,12 @@ function vCal() {
   const evs = {}; for (const e of all('eventos')) if (!ui.area || e.area === ui.area) (evs[e.fecha] = evs[e.fecha] || []).push(e);
   do {
     for (let i = 0; i < 7; i++, d = L.addDias(d, 1)) {
-      const en = L.pd(d).getUTCMonth() === m, w = i === 0 && sems[d], list = L.eventosDe(d).filter(e => !ui.area || e.area === ui.area), rut = ui.rutMes && en && !ui.area ? L.rutinaDe(d) : [];
-      g += `<div class="cal-d ${en ? '' : 'out'} ${d === L.hoy() ? 'today' : ''} ${i > 4 ? 'we' : ''} ${en && !list.length && !rut.length ? 'vac' : ''}" data-drop="dia:${d}" data-a="nuevo-ev" data-f="${d}"><div class="cal-n"><span>${L.pd(d).getUTCDate()}<em> ${L.DIAS[i + 1]}</em></span>${w ? `<i class="tag ${w.num ? 'blue' : 'gray'}">${w.num ? 'S' + w.num : 'Receso'}</i>` : ''}</div>${list.map(e => evChip(e)).join('')}${rut.length ? `<div class="rutbox"><span class="rutlbl">Rutina</span>${rut.map(rutChip).join('')}</div>` : ''}</div>`;
+      const en = L.pd(d).getUTCMonth() === m, w = i === 0 && sems[d], list = L.eventosDe(d).filter(e => L.enMensual(e) && (!ui.area || e.area === ui.area)), rut = ui.rutMes && en && !ui.area ? L.rutinaDe(d) : [];
+      g += `<div class="cal-d ${en ? '' : 'out'} ${d === L.hoy() ? 'today' : ''} ${i > 4 ? 'we' : ''} ${en && !list.length && !rut.length ? 'vac' : ''}" data-drop="dia:${d}" data-a="nuevo-ev" data-f="${d}" data-m="SI"><div class="cal-n"><span>${L.pd(d).getUTCDate()}<em> ${L.DIAS[i + 1]}</em></span>${w ? `<i class="tag ${w.num ? 'blue' : 'gray'}">${w.num ? 'S' + w.num : 'Receso'}</i>` : ''}</div>${list.map(e => evChip(e, false, false, true)).join('')}${rut.length ? `<div class="rutbox"><span class="rutlbl">Rutina</span>${rut.map(rutChip).join('')}</div>` : ''}</div>`;
     }
   } while (L.pd(d).getUTCMonth() === m);
-  const cnt = {}; for (const e of all('eventos')) cnt[e.fecha.slice(0, 7)] = (cnt[e.fecha.slice(0, 7)] || 0) + 1;
-  return head(`${L.MESES[m]} ${y}`, `${cnt[ui.mes] || 0} evento${cnt[ui.mes] === 1 ? "" : "s"} este mes · arrastra un evento para cambiarlo de día`, ed() ? `<button class="btn dark" data-a="nuevo-ev" data-f="${ui.mes === L.hoy().slice(0, 7) ? L.hoy() : ui.mes + '-01'}">${ic('plus')} Nuevo evento</button>` : '') +
+  const cnt = {}; for (const e of all('eventos')) if (L.enMensual(e)) cnt[e.fecha.slice(0, 7)] = (cnt[e.fecha.slice(0, 7)] || 0) + 1;
+  return head(`${L.MESES[m]} ${y}`, `${cnt[ui.mes] || 0} evento${cnt[ui.mes] === 1 ? "" : "s"} este mes · arrastra un evento para cambiarlo de día`, ed() ? `<button class="btn dark" data-a="nuevo-ev" data-m="SI" data-f="${ui.mes === L.hoy().slice(0, 7) ? L.hoy() : ui.mes + '-01'}">${ic('plus')} Nuevo evento</button>` : '') +
     `<div class="pills scroll">${L.MESES.map((n, i) => i < 2 ? '' : `<button class="pill ${i === m ? 'on' : ''}" data-a="mes" data-m="${y}-${String(i + 1).padStart(2, '0')}">${n.slice(0, 3)}<i>${cnt[`${y}-${String(i + 1).padStart(2, '0')}`] || ''}</i></button>`).join('')}</div>
      <div class="pills scroll"><button class="pill sm ${ui.area ? '' : 'on'}" data-a="area" data-v="">Todas las áreas</button>${Object.keys(L.AREAS).map(a => `<button class="pill sm ${ui.area === a ? 'on' : ''}" data-a="area" data-v="${a}"><span class="dot ${L.AREAS[a]}"></span>${a === 'Direccion' ? 'Dirección' : a}</button>`).join('')}</div>
      <div class="pills scroll"><button class="pill sm ${ui.rutMes ? 'on' : ''}" data-a="rut-mes" aria-pressed="${ui.rutMes}">${ui.rutMes ? 'Ocultar' : 'Mostrar'} rutina semanal</button><span class="muted sm">El mensual muestra solo actividades específicas; la rutina (reuniones fijas, talleres y reforzamientos) está en la vista Semana.</span></div>
@@ -291,7 +295,7 @@ function vCfg() {
         ${adm() ? `<label class="btn wide filebtn">Cargar base unificada (.xlsx)<input type="file" accept=".xlsx" data-c="import" hidden></label><p class="muted sm">Cargar una base unificada <b>reemplaza</b> todos los datos actuales por los del archivo.</p>` : '<p class="tag amber">Solo un administrador puede cargar datos.</p>'}</div>
       <div class="card"><h3>Agregar desde archivos originales</h3><p class="muted sm">Opcional. Para incorporar datos desde las planillas antiguas del colegio: base de horarios (BD_AppSheet), Calendario Anual (hojas por mes) o Calendario Semanal (hojas 01, 02…). El formato se detecta solo y los eventos no se duplican.</p>
         ${adm() ? `<label class="btn wide filebtn">${ic('plus')} Elegir archivo original<input type="file" accept=".xlsx,.xls" data-c="import" hidden></label>` : ''}</div>
-      ${ed() ? `<div class="card"><h3>Limpieza del calendario</h3><p class="muted sm">${(n => n ? `<b>${n} evento${n === 1 ? '' : 's'}</b> aparece${n === 1 ? '' : 'n'} repetido${n === 1 ? '' : 's'} el mismo día en el calendario anual y en el semanal.` : 'No hay eventos repetidos entre el calendario anual y el semanal.')(L.paresDuplicados().length)}</p><button class="btn wide" data-a="ver-dup">Revisar y fusionar repetidos</button></div>` : ''}
+      ${ed() ? `<div class="card"><h3>Limpieza del calendario</h3><p class="muted sm">${(n => n ? `<b>${n} evento${n === 1 ? '' : 's'}</b> aparece${n === 1 ? '' : 'n'} dos veces el mismo día: como hito del mensual y como actividad de la semana.` : 'No hay hitos del mensual repetidos en la semana.')(L.paresDuplicados().length)}</p><button class="btn wide" data-a="ver-dup">Revisar y unir repetidos</button></div>` : ''}
       <div class="card"><h3>Conexión</h3><p><span class="dot ${S.nube ? 'green' : 'gray'}"></span> ${S.nube ? 'Conectado a Google Sheets (nube)' : '<b>Modo local</b>: los datos viven solo en este navegador.'}</p>
         ${S.nube ? `<p class="muted sm">Cuenta: <b>${esc(e.email || '—')}</b> · Rol: <b>${esc(e.rol || '—')}</b><br>Cambios pendientes de subir: <b>${S.pendientes()}</b>${e.ultima ? ' · Última sincronización ' + new Date(e.ultima).toLocaleTimeString('es-CL') : ''}</p><div class="row"><button class="btn" data-a="sync">Sincronizar ahora</button><button class="btn" data-a="salir">Cerrar sesión y borrar datos de este equipo</button></div>`
         : '<p class="muted sm">Para trabajar varios usuarios a la vez, sigue el README: crea la planilla, despliega el Apps Script y completa <code>config.js</code>.</p>'}</div>
@@ -314,21 +318,23 @@ function mCrud(t, id, pre) {
 const pie = (existe, f, extra) => `${existe ? `<button class="btn danger" data-a="borrar" data-f="${f}">Eliminar</button>` : ''}<span class="grow"></span>${extra || ''}<button class="btn dark" data-a="guardar" data-f="${f}">Guardar</button>`;
 
 // ============ modales de dominio ============
-const EV_DET = ['area', 'tipo', 'cursos', 'espacio_id', 'responsable', 'nota'];
+const EV_DET = ['detalle', 'area', 'cursos', 'espacio_id', 'responsable'];
 const SEC_OPC = [['ESTUDIANTES', 'Estudiantes'], ['FUNCIONARIOS', 'Funcionarios'], ['EXTERNAS', 'Externa']];
 function mEvento(id, pre) {
-  const e0 = get('eventos', id) || { fecha: ui.fecha, jornada: 'AMBAS', area: 'UTP', seccion: 'ESTUDIANTES', ...pre }, e = { ...e0, seccion: L.seccionDe(e0) };
+  const e0 = get('eventos', id) || { fecha: ui.fecha, jornada: 'AMBAS', area: 'UTP', seccion: 'ESTUDIANTES', mensual: 'NO', ...pre }, e = { ...e0, seccion: L.seccionDe(e0) };
   if (!ed() && !id) return;
   const n = EV_DET.filter(k => e[k] && !(k === 'area' && e.area === 'UTP')).length, abrir = !!pre && !!pre.espacio_id;
   modal(id ? 'Editar evento' : 'Nuevo evento', `<form class="form" data-form="ev" data-id="${esc(id || '')}">${campos([
     { k: 'titulo', label: 'Actividad', req: 1, ph: 'Ej.: Ensayo SIMCE 4° básicos' }, { k: 'fecha', label: 'Fecha', type: 'date', req: 1, w: 'half' }, { k: 'hora', label: 'Horario', ph: '09:00-10:30 (vacío = sin hora)', w: 'half', max: 20 },
-    { k: 'seccion', label: 'Sección del calendario semanal', type: 'seg', options: SEC_OPC }], e)}
+    { k: 'seccion', label: 'Sección en la semana', type: 'seg', options: SEC_OPC },
+    { k: 'mensual', label: '¿Aparece en el calendario mensual?', type: 'seg', options: [['SI', 'Sí, es un hito del mes'], ['NO', 'No, solo en la semana']] }], e)}
     <button type="button" class="more" data-a="mas-det" aria-expanded="${abrir}">${abrir ? 'Ocultar detalles' : 'Todos los detalles'}${n ? ` <i>${n}</i>` : ''}</button>
     <div class="det" ${abrir ? '' : 'hidden'}>${campos([
+    { k: 'detalle', label: 'Detalle hora a hora (se ve en la semana, el PDF y el parte diario)', type: 'textarea', ph: 'Una línea por horario, por ejemplo:\n08:00 Ingreso estudiantes\n08:30 Ingreso a sala, Matemática\n10:30 Recreo' },
     { k: 'jornada', label: 'Jornada (se ajusta sola al escribir el horario)', type: 'seg', options: [['MANANA', 'Mañana'], ['TARDE', 'Tarde'], ['AMBAS', 'Todo el día']] },
-    { k: 'area', label: 'Área', type: 'select', options: Object.keys(L.AREAS).map(a => [a, a === 'Direccion' ? 'Dirección' : a]), w: 'half' }, { k: 'tipo', label: 'Tipo de evento', ph: 'Evaluación, acto, salida…', w: 'half' },
+    { k: 'area', label: 'Área', type: 'select', options: Object.keys(L.AREAS).map(a => [a, a === 'Direccion' ? 'Dirección' : a]), w: 'half' }, { k: 'responsable', label: 'Responsable', list: 'dl-func', w: 'half' },
     { k: 'cursos', label: 'Cursos involucrados', ph: 'Ej.: 2° MEDIO A, 4° BÁSICO B · o "Todos" · o un ciclo', hint: 'Los cursos nombrados verán una alerta en su horario.' },
-    { k: 'espacio_id', label: 'Espacio físico', type: 'select', options: optEsp(), w: 'half' }, { k: 'responsable', label: 'Responsable', list: 'dl-func', w: 'half' }, { k: 'nota', label: 'Detalle (horarios por curso, participantes…)', type: 'textarea' }], e)}</div>
+    { k: 'espacio_id', label: 'Espacio físico', type: 'select', options: optEsp() }], e)}</div>
     <div id="colis"></div></form>`,
     ed() ? pie(!!id, 'ev', id ? `<button class="btn" data-a="duplicar">Duplicar +7 días</button>` : '') : '');
   avisoColision();
@@ -366,7 +372,7 @@ function mBloque(id, pre) {
 function guardar(f) {
   const form = $(`[data-form=${f}]`), o = leerForm(form), id = form.dataset.id;
   const falta = [...form.querySelectorAll('[required]')].find(el => !el.value.trim()); if (falta) { falta.focus(); return toast('Completa los campos obligatorios', 'err'); }
-  if (f === 'ev') { put('eventos', { ...(get('eventos', id) || {}), ...o, id: id || S.uid('EV') }); ui.fecha = o.fecha; if (ui.view === 'calendario') ui.mes = o.fecha.slice(0, 7); }
+  if (f === 'ev') { const prev = { ...(get('eventos', id) || { origen: 'App' }) }; delete prev.nota; delete prev.tipo; put('eventos', { ...prev, ...o, id: id || S.uid('EV') }); ui.fecha = o.fecha; if (ui.view === 'calendario') ui.mes = o.fecha.slice(0, 7); }
   else if (f === 'aus') {
     if (o.hasta && o.hasta < o.fecha) return toast('La fecha "hasta" es anterior al inicio', 'err');
     const fu = funcPorNombre(o.nombre), prev = get('ausencias', id) || {};
@@ -417,7 +423,7 @@ const A = {
   cerrar: cerrarModal, 'cerrar-ovl': (el, e) => { if (e.target === el) cerrarModal(); },
   fecha: el => { ui.fecha = L.addDias(ui.fecha, +el.dataset.n); if (Math.abs(+el.dataset.n) === 1) { const s = Math.sign(+el.dataset.n); while (L.dow(ui.fecha) > 5) ui.fecha = L.addDias(ui.fecha, s); } ui.sabDia = 0; },
   'fecha-hoy': () => { ui.fecha = L.proximoHabil(L.hoy()); ui.sabDia = 0; }, 'ir-dia': el => { ui.fecha = el.dataset.f; location.hash = '#hoy'; },
-  'nueva-aus': () => mAusencia(), 'edit-aus': el => mAusencia(el.dataset.id), 'nuevo-ev': el => { if (ed()) mEvento('', { fecha: el.dataset.f, ...(el.dataset.j ? { jornada: el.dataset.j } : {}), ...(el.dataset.s ? { seccion: el.dataset.s } : {}), ...(el.dataset.e ? { espacio_id: el.dataset.e } : {}) }); }, 'edit-ev': el => mEvento(el.dataset.id),
+  'nueva-aus': () => mAusencia(), 'edit-aus': el => mAusencia(el.dataset.id), 'nuevo-ev': el => { if (ed()) mEvento('', { fecha: el.dataset.f, ...(el.dataset.j ? { jornada: el.dataset.j } : {}), ...(el.dataset.s ? { seccion: el.dataset.s } : {}), mensual: el.dataset.m === 'SI' ? 'SI' : 'NO', ...(el.dataset.e ? { espacio_id: el.dataset.e } : {}) }); }, 'edit-ev': el => mEvento(el.dataset.id),
   'edit-mat': el => adm() ? mCrud('matriz', el.dataset.id) : null, 'edit-esp': el => mCrud('espacios', el.dataset.id), 'ver-esp': el => mEspacio(el.dataset.id), crud: el => mCrud(el.dataset.t, el.dataset.id),
   'edit-blq': el => mBloque(el.dataset.id), 'nuevo-blq': el => { const r = L.BLOQUES.find(x => x.c === el.dataset.c); mBloque('', { dia: +el.dataset.d, ini: r.i, fin: r.f, ...(ui.hTab === 'curso' ? { curso_id: ui.curso, sala_id: (get('cursos', ui.curso) || {}).sala_id } : { func_id: ui.func }) }); },
   guardar: el => guardar(el.dataset.f), borrar: el => borrar(el, el.dataset.f),
@@ -467,6 +473,7 @@ initDrag((src, dst) => {
 // ============ arranque ============
 function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
 S.cargarLocal();
+if (S.puedeEditar()) { const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); } // nombres de columnas anteriores
 S.onChange(() => { $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join(''); pedir(true); });
 window.addEventListener('hashchange', ruta);
 $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join('');

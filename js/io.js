@@ -1,6 +1,6 @@
 // Importación / exportación .XLSX (RF-5.1). SheetJS se carga solo cuando se necesita.
-import { all, bulk, uid } from './store.js';
-import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, nombreEspacio, EDIFICIOS } from './logic.js';
+import { all, bulk, uid, del } from './store.js';
+import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, enMensual, mismoTitulo, fusionar, migrarEvento, nombreEspacio, EDIFICIOS } from './logic.js';
 
 let cargando;
 export function sheetjs() {
@@ -101,11 +101,11 @@ export function clasificar(t) {
 function importarCalendario(X, wb) {
   // Formato real: cada día ocupa 1–2 columnas; una fila de fechas y debajo una línea por evento.
   // La columna contigua a la fecha lleva efemérides; a veces la fecha fue sobrescrita con texto (se infiere por sus vecinas).
-  const nuevos = [], existentes = new Set(all('eventos').map(e => e.fecha + '|' + norm(e.titulo)));
+  const nuevos = [], existentes = new Set();
   const agregar = (f, texto) => { for (const linea of String(texto).split(/\r?\n/)) {
     const t = linea.replace(/\.{4,}/g, ' ').replace(/^[\s•·\-*]+/, '').replace(/\s+/g, ' ').trim(); if (t.length < 3 || !util(t) || /^notes?:?$/i.test(t)) continue;
     const key = f + '|' + norm(t); if (existentes.has(key)) continue; existentes.add(key);
-    nuevos.push({ id: uid('EV'), fecha: f, titulo: t.slice(0, 200), tipo: 'Calendario anual', cursos: '', espacio_id: '', responsable: '', ...clasificar(t) }); } };
+    nuevos.push({ id: uid('EV'), fecha: f, titulo: t.slice(0, 200), origen: 'Calendario anual', mensual: 'SI', cursos: '', espacio_id: '', responsable: '', detalle: '', ...clasificar(t) }); } };
   for (const name of wb.SheetNames) {
     const mi = mesDe(name); if (mi < 0) continue;
     const g = X.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
@@ -124,9 +124,28 @@ function importarCalendario(X, wb) {
       }
     });
   }
-  if (!nuevos.length) return 'No se encontraron eventos nuevos en el calendario (¿ya estaba importado?).';
-  bulk('eventos', nuevos);
-  return `Calendario anual importado: ${nuevos.length} eventos nuevos (los que ya existían no se duplicaron).`;
+  if (!nuevos.length) throw new Error('No se encontraron eventos en el calendario anual.');
+  return sincronizarAnual(nuevos);
+}
+// El calendario anual es la fuente del calendario MENSUAL: al cargarlo, la app queda igual a él sin perder
+// el detalle semanal ni lo editado en los eventos que siguen existiendo.
+function sincronizarAnual(archivo) {
+  const prev = all('eventos').filter(e => enMensual(e) && /anual/i.test(e.origen || '')), usados = new Set(), cambios = [], borrar = [];
+  let iguales = 0, renombrados = 0, nuevos = 0, quitados = 0, degradados = 0, unidos = 0;
+  for (const n of archivo) {
+    const x = prev.find(e => !usados.has(e.id) && e.fecha === n.fecha && norm(e.titulo) === norm(n.titulo)) || prev.find(e => !usados.has(e.id) && e.fecha === n.fecha && mismoTitulo(e.titulo, n.titulo));
+    if (x) { usados.add(x.id); if (x.titulo !== n.titulo) { cambios.push({ ...x, titulo: n.titulo }); renombrados++; } else iguales++; continue; }
+    const sem = all('eventos').find(e => !enMensual(e) && !usados.has(e.id) && e.fecha === n.fecha && mismoTitulo(e.titulo, n.titulo)); // la misma actividad ya estaba en el semanal
+    n.seccion = seccionDe(n);
+    if (sem) { usados.add(sem.id); cambios.push(fusionar(n, sem)); borrar.push(sem.id); unidos++; } else { cambios.push(n); nuevos++; }
+  }
+  for (const e of prev) if (!usados.has(e.id)) {
+    if (e.origen === 'Calendario anual') { borrar.push(e.id); quitados++; }
+    else { cambios.push({ ...e, mensual: 'NO', origen: 'Calendario semanal' }); degradados++; } // traía detalle semanal: se conserva en la semana
+  }
+  if (cambios.length) bulk('eventos', cambios);
+  for (const id of borrar) del('eventos', id);
+  return `Calendario anual cargado: ${archivo.length} eventos en el mensual · ${nuevos} nuevos, ${unidos} unidos con su detalle semanal, ${renombrados} con nombre actualizado, ${quitados} quitados${degradados ? `, ${degradados} pasan solo a la semana` : ''}, ${iguales} sin cambios.`;
 }
 
 // ---- Calendario Semanal (hojas 01…NN; dos diseños: celda única por día, o pares hora|texto por secciones) ----
@@ -173,7 +192,7 @@ function importarSemanal(X, wb) {
         let espacio_id = ''; if (e.nota.length === 1 && espacios.has(norm(e.nota[0]))) { espacio_id = espacios.get(norm(e.nota[0])); e.nota = []; }
         const key = fecha + '|' + norm(e.titulo); if (existentes.has(key)) continue; existentes.add(key);
         const cl = clasificar(e.titulo), hr1 = e.hora || (e.nota.map(x => (horaDe(x) || [])[0]).find(Boolean) || '');
-        nuevos.push({ id: uid('EV'), fecha, titulo: e.titulo.slice(0, 200), hora: e.hora, jornada: hr1 ? jornadaDe(hr1) : 'AMBAS', area: e.ext ? 'Direccion' : cl.area, tipo: e.ext ? 'Reunión externa' : 'Calendario semanal', seccion: e.ext ? 'EXTERNAS' : 'ESTUDIANTES', cursos: '', espacio_id, responsable: '', nota: e.nota.join('\n').slice(0, 1500) });
+        nuevos.push({ id: uid('EV'), fecha, titulo: e.titulo.slice(0, 200), hora: e.hora, jornada: hr1 ? jornadaDe(hr1) : 'AMBAS', area: e.ext ? 'Direccion' : cl.area, origen: e.ext ? 'Reunión externa' : 'Calendario semanal', mensual: 'NO', seccion: e.ext ? 'EXTERNAS' : 'ESTUDIANTES', cursos: '', espacio_id, responsable: '', detalle: e.nota.join('\n').slice(0, 1500) });
       }
     }
   }
@@ -193,7 +212,7 @@ function importarSemanal(X, wb) {
 // Una hoja por tabla, con las mismas columnas que la planilla de Google. Es el único archivo que hay que conservar.
 const ESQUEMA = {
   semanas: ['01_Semanas_Clases', ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta', 'foco', 'consejo_tema', 'lineal_cursos']],
-  eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'jornada', 'hora', 'titulo', 'area', 'tipo', 'cursos', 'espacio_id', 'responsable', 'nota', 'seccion']],
+  eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen']],
   ausencias: ['03_Ausencias_Reemplazos', ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura']],
   funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email']],
   espacios: ['05_Espacios_Edificios', ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado']],
@@ -210,7 +229,7 @@ const LEEME = [
   ['Para actualizarlo: Ajustes → Descargar base unificada (hazlo como respaldo cada cierto tiempo).'], [''],
   ['HOJAS DE DATOS (se pueden editar en Excel respetando los encabezados):'],
   ['01_Semanas_Clases', 'Semanas lectivas. tipo = LECTIVA o RECESO (los recesos no cuentan en la numeración).'],
-  ['02_Eventos_Calendario', 'Todos los eventos (año, semana y día). seccion = ESTUDIANTES, FUNCIONARIOS o EXTERNAS (fila del calendario semanal). jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE.'],
+  ['02_Eventos_Calendario', 'Todos los eventos. mensual = SI si aparece en el calendario MENSUAL (los hitos del calendario anual) o NO si es solo de la semana. detalle = lo que ocurre hora a hora (una línea por horario, ej. "08:30 Ingreso a sala"), visible solo en la semana, el PDF y el parte diario. seccion = ESTUDIANTES, FUNCIONARIOS o EXTERNAS. jornada = MANANA, TARDE o AMBAS. area = UTP, PIE, Convivencia, Direccion, ACLE. origen = de dónde vino.'],
   ['03_Ausencias_Reemplazos', 'Ausencias y quién cubre cada bloque (columna cobertura: la administra la app).'],
   ['04_Funcionarios', 'Docentes y equipo PIE. No incluye RUT.'],
   ['05_Espacios_Edificios', 'edificio = ED_MATRIZ, ED_CICLO_MENOR, ED_PIE o ED_COMUNES.'],
@@ -232,6 +251,7 @@ function importarUnificada(X, wb) {
       const id = String(r.id == null ? '' : r.id).trim(); if (!id || vistos.has(id)) continue; vistos.add(id);
       const o = { id }; for (const k of cols) { if (k === 'id') continue; let x = String(r[k] == null ? '' : r[k]).trim(); if (x === '') continue;
         if (k === 'ini' || k === 'fin') x = hhmm(x) || x; else if (k === 'dia' || k === 'orden' || k === 'mes') x = +x || 0; o[k] = x; }
+      if (t === 'eventos') { if (!o.detalle && r.nota) o.detalle = String(r.nota).trim(); if (!o.origen && r.tipo) o.origen = String(r.tipo).trim(); Object.assign(o, migrarEvento(o) || {}); if (o.mensual) o.mensual = /^s/i.test(o.mensual) ? 'SI' : 'NO'; } // bases anteriores (nota, tipo)
       rows.push(o);
     }
     tablas[t] = rows;
@@ -265,10 +285,10 @@ export async function exportarLibro() {
 }
 function XLSX_escribir(X, vistas) {
   const wb = X.utils.book_new(), lee = X.utils.aoa_to_sheet(LEEME); lee['!cols'] = [{ wch: 28 }, { wch: 120 }]; X.utils.book_append_sheet(wb, lee, 'LEEME');
-  const ANCHO = { titulo: 46, nombre: 34, detalle: 34, nota: 40, cobertura: 30, participantes: 40, equipo_pie: 40, profesor_jefe: 28, cargo: 34, id: 20, foco: 30 };
+  const ANCHO = { titulo: 46, mensual: 9, nombre: 34, detalle: 34, nota: 40, cobertura: 30, participantes: 40, equipo_pie: 40, profesor_jefe: 28, cargo: 34, id: 20, foco: 30 };
   for (const t in ESQUEMA) { const [hoja, cols] = ESQUEMA[t];
     const orden = t === 'eventos' || t === 'ausencias' ? (a, b) => String(a.fecha).localeCompare(String(b.fecha)) : t === 'semanas' ? (a, b) => String(a.inicio).localeCompare(String(b.inicio)) : t === 'cursos' ? (a, b) => a.orden - b.orden : t === 'bloques' ? (a, b) => String(a.func_id).localeCompare(String(b.func_id), 'es', { numeric: true }) || a.dia - b.dia || tmin(a.ini) - tmin(b.ini) : (a, b) => String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
-    const aoa = [cols].concat(all(t).slice().sort(orden).map(r => cols.map(k => k === 'seccion' && t === 'eventos' ? seccionDe(r) : r[k] == null ? '' : String(r[k]))));
+    const aoa = [cols].concat(all(t).slice().sort(orden).map(r => cols.map(k => t === 'eventos' && k === 'seccion' ? seccionDe(r) : t === 'eventos' && k === 'mensual' ? (r.mensual || 'NO') : r[k] == null ? '' : String(r[k]))));
     const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = cols.map(k => ({ wch: ANCHO[k] || 14 })); ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(aoa.length - 1, 0), c: cols.length - 1 } }) };
     X.utils.book_append_sheet(wb, ws, hoja); }
   for (const n of vistas.SheetNames) X.utils.book_append_sheet(wb, vistas.Sheets[n], 'VISTA_' + n);

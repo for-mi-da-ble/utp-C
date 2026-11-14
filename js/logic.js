@@ -175,7 +175,7 @@ export function duplicados(evs) {
 /** Hora para mostrar: la del evento o, si no tiene, el rango de horas que aparece en su detalle. */
 export function horaVisible(e) {
   if (e.hora) return { txt: String(e.hora).replace('-', '–'), varios: false };
-  const t = [...String(e.nota || '').matchAll(/\b(\d{1,2})[:.](\d{2})\b/g)].map(m => +m[1] * 60 + +m[2]).filter(x => x >= 420 && x <= 1260).sort((a, b) => a - b);
+  const t = [...String(e.detalle || '').matchAll(/\b(\d{1,2})[:.](\d{2})\b/g)].map(m => +m[1] * 60 + +m[2]).filter(x => x >= 420 && x <= 1260).sort((a, b) => a - b);
   if (!t.length) return null;
   const f = x => String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0');
   return { txt: t.length > 1 && t[t.length - 1] !== t[0] ? `${f(t[0])}–${f(t[t.length - 1])}` : f(t[0]), varios: t.length > 1 };
@@ -191,26 +191,41 @@ export function rutinaDe(fecha, cats) {
   return all('matriz').filter(m => +m.dia === d && (!cats || cats[m.categoria])).sort((a, b) => tmin(a.ini) - tmin(b.ini));
 }
 
-// ---------- duplicados entre el calendario anual y el semanal ----------
+// ---------- eventos: calendario mensual vs. detalle semanal ----------
+// Un evento puede ser un hito del calendario MENSUAL (mensual = 'SI', p. ej. "SIMCE II° medio") y además llevar en
+// `detalle` lo que ocurre hora a hora, que solo se despliega en la vista semanal, el PDF y el parte diario.
+export const enMensual = e => e.mensual === 'SI';
+/** Normaliza nombres antiguos de columnas (nota → detalle, tipo → origen) y completa `mensual`. Devuelve null si no cambia. */
+export function migrarEvento(e) {
+  if (e.nota === undefined && e.tipo === undefined && e.mensual) return null;
+  const o = { ...e };
+  if (o.nota !== undefined) { if (!o.detalle) o.detalle = o.nota; delete o.nota; }
+  if (o.tipo !== undefined) { if (!o.origen) o.origen = o.tipo; delete o.tipo; }
+  if (!o.mensual) o.mensual = /anual/i.test(o.origen || '') ? 'SI' : 'NO';
+  return o;
+}
 const claveTitulo = t => norm(t).replace(/\b(iv|iii|ii)(?=\s*°|\s*medio)/g, m => ({ ii: 2, iii: 3, iv: 4 }[m])).replace(/[^a-z0-9]/g, '');
-function mismoTitulo(a, b) { const x = claveTitulo(a), y = claveTitulo(b); return x.length >= 4 && (x === y || (Math.min(x.length, y.length) >= 6 && (x.includes(y) || y.includes(x)))); }
-/** Pares [anual, semanal] del mismo día con título equivalente. */
+export function mismoTitulo(a, b) {
+  const x = claveTitulo(a), y = claveTitulo(b), c = Math.min(x.length, y.length), l = Math.max(x.length, y.length);
+  // un nombre contenido en el otro solo cuenta si no es un fragmento demasiado corto (evita unir "1° Ciclo" con "Autocuidado HPV1 - 1° Ciclo")
+  return x.length >= 4 && (x === y || (c >= 6 && (x.includes(y) || y.includes(x)) && (c >= 10 || c / l >= 0.4)));
+}
+/** Pares [evento del mensual, actividad solo semanal] del mismo día con título equivalente: la misma cosa registrada dos veces. */
 export function paresDuplicados() {
   const porDia = {}; for (const e of all('eventos')) (porDia[e.fecha] = porDia[e.fecha] || []).push(e);
   const pares = [];
   for (const f in porDia) {
-    const an = porDia[f].filter(e => e.tipo === 'Calendario anual'), se = porDia[f].filter(e => e.tipo !== 'Calendario anual'), usados = new Set();
+    const an = porDia[f].filter(enMensual), se = porDia[f].filter(e => !enMensual(e)), usados = new Set();
     for (const a of an) { const b = se.find(x => !usados.has(x.id) && mismoTitulo(a.titulo, x.titulo)); if (b) { usados.add(b.id); pares.push([a, b]); } }
   }
   return pares.sort((x, y) => x[0].fecha.localeCompare(y[0].fecha));
 }
-/** Une un par en un solo evento: título más descriptivo y hora/detalle/espacio del que los tenga. */
+/** Une un par: queda el hito del mensual (con su título) y recibe la hora, el detalle y los datos de la actividad semanal. */
 export function fusionar(a, b) {
-  const hora = a.hora || b.hora || '', notas = [...new Set([a.nota, b.nota].filter(Boolean).flatMap(n => String(n).split('\n')))];
-  return { ...a, titulo: String(b.titulo).length > String(a.titulo).length + 3 ? b.titulo : a.titulo, hora,
-    jornada: hora ? jornadaDe(hora) : (a.jornada !== 'AMBAS' ? a.jornada : b.jornada || 'AMBAS'), nota: notas.join('\n'),
+  const hora = a.hora || b.hora || '', lineas = [...new Set([a.detalle, b.detalle].filter(Boolean).flatMap(n => String(n).split('\n')))];
+  return { ...a, mensual: 'SI', hora, jornada: hora ? jornadaDe(hora) : (a.jornada !== 'AMBAS' ? a.jornada : b.jornada || 'AMBAS'), detalle: lineas.join('\n'),
     espacio_id: a.espacio_id || b.espacio_id || '', cursos: a.cursos || b.cursos || '', responsable: a.responsable || b.responsable || '',
-    area: a.area !== 'UTP' ? a.area : b.area || a.area, seccion: a.seccion || b.seccion || seccionDe(b), tipo: 'Calendario anual + semanal' };
+    area: a.area !== 'UTP' ? a.area : b.area || a.area, seccion: b.seccion || a.seccion || seccionDe(b), origen: 'Calendario anual + semanal' };
 }
 
 // ---------- secciones del calendario semanal (como la planilla del colegio) ----------
@@ -220,9 +235,10 @@ const RE_FUNC = /\b(consejo|coordinador|acompanamiento|autocuidado|capacitacion|
 /** Sección de un evento: la guardada o, si no tiene, una deducida de su origen y su título. */
 export function seccionDe(e) {
   if (e.seccion && SECCIONES[e.seccion]) return e.seccion;
-  if (e.tipo === 'Reunión externa') return 'EXTERNAS';
+  const origen = e.origen || e.tipo || '';
+  if (origen === 'Reunión externa') return 'EXTERNAS';
   const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS';
-  if (/^calendario (anual \+ )?semanal/i.test(e.tipo || '')) return 'ESTUDIANTES'; // en la planilla semanal venían bajo "Actividades estudiantes"
+  if (/^calendario (anual \+ )?semanal/i.test(origen)) return 'ESTUDIANTES'; // en la planilla semanal venían bajo "Actividades estudiantes"
   if (/reunion/.test(t) && !/apoderad/.test(t)) return 'FUNCIONARIOS';
   return RE_FUNC.test(t) && !/estudiantes?\b/.test(t.replace(/profes y estudiantes/, '')) ? 'FUNCIONARIOS' : 'ESTUDIANTES';
 }

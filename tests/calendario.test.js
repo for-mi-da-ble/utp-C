@@ -9,8 +9,10 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   // mensual
   await p.goto(U + '/#calendario'); await p.waitForSelector('.cal .ev');
   const lun9 = '[data-drop="dia:2026-11-09"]'; assert.equal(await p.locator('.cal .rut').count(), 0, 'el mensual no muestra rutina por defecto');
-  const actos = await p.locator(`${lun9} .ev`, { hasText: 'Actos Académicos' }).first().locator('.evh').textContent(); assert(/08:00/.test(actos), 'hora desde el detalle: ' + actos);
-  console.log(`✓ mensual: solo actividades específicas (sin rutina); hora tomada del detalle → "${actos}"`);
+  const hitos = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).filter(e => e.mensual === 'SI' && e.fecha.startsWith('2026-11')).length);
+  assert.equal(await p.locator('.cal .cal-d:not(.out) .ev').count(), hitos, 'el mensual muestra solo los hitos');
+  const simceMes = p.locator('[data-drop="dia:2026-11-11"] .ev', { hasText: 'SIMCE 2°MEDIO' }); assert.equal(await simceMes.count(), 1); assert.equal(await simceMes.locator('.agenda').count(), 0, 'en el mensual es un solo bloque');
+  console.log(`✓ mensual: ${hitos} hitos de noviembre (solo los del calendario anual), SIMCE II° medio como un bloque`);
   await p.screenshot({ path: path.join(out, 'mensual.png'), fullPage: true });
   await p.click('[data-a=rut-mes]'); await p.waitForSelector('.cal .rut'); const nr = await p.locator(`${lun9} .rut`).count(); assert(nr >= 10); assert.equal(await p.locator('[data-drop="dia:2026-11-14"] .rut').count(), 0); console.log(`✓ rutina opcional en el mensual (${nr} el lunes 9), nunca en fin de semana`);
   // feriado: sin rutina
@@ -26,9 +28,10 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   await p.click('[data-a=mas-det]'); assert(await p.locator('.det').isVisible()); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.screenshot({ path: path.join(out, 'form-detalles.png') }); await p.click('[data-a=guardar]'); await p.waitForTimeout(100);
   const nv = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo === 'Prueba automática SIG-UTP')); assert.equal(nv.jornada, 'TARDE', 'jornada guardada ' + JSON.stringify(nv)); assert.equal(nv.seccion, 'FUNCIONARIOS'); assert(nv.espacio_id); console.log('✓ formulario: sección elegida con un clic, "Todos los detalles" despliega el resto, jornada automática');
   // fusión de repetidos
+  await p.goto(U + '/#semana'); await p.click('[data-a=fecha-hoy]'); await p.waitForFunction(() => /Semana 35/.test(document.querySelector('.phead h1').textContent)); const simceSem = p.locator('.semana .ev', { hasText: 'SIMCE 2°MEDIO' }).first(); assert.equal(await simceSem.locator('.agenda li').count(), 5, await p.evaluate(() => location.hash + ' ' + (document.querySelector('.phead h1') || {}).textContent + ' ' + [...document.querySelectorAll('.semana .ev')].filter(x => /SIMCE/.test(x.textContent)).map(x => x.outerHTML.slice(0, 300)).join('\n'))); console.log('✓ semana: el mismo SIMCE muestra su detalle hora a hora (' + (await simceSem.locator('.agenda li').allTextContents()).join(' | ') + ')');
   await p.goto(U + '/#config'); const n0 = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).length);
-  await p.click('[data-a=ver-dup]'); const np = await p.locator('[data-par]').count(); await p.screenshot({ path: path.join(out, 'duplicados.png') }); await p.locator('[data-par]').first().uncheck(); await p.click('[data-a=ok-dup]'); await p.waitForTimeout(150);
-  const n1 = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).length); assert.equal(n0 - n1, np - 1); console.log(`✓ fusión: ${np} pares encontrados, ${np - 1} fusionados (1 desmarcado)`);
+  await p.click('[data-a=ver-dup]'); await p.waitForTimeout(150); const np = await p.locator('[data-par]').count(); if (!np) console.log('✓ no quedan repetidos por unir (la base ya viene unida)'); else { await p.screenshot({ path: path.join(out, 'duplicados.png') }); await p.locator('[data-par]').first().uncheck(); await p.click('[data-a=ok-dup]'); await p.waitForTimeout(150);
+  const n1 = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).length); assert.equal(n0 - n1, np - 1); console.log(`✓ fusión: ${np} pares encontrados, ${np - 1} fusionados (1 desmarcado)`); }
   const tv = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => /Vocacional UST\(4MB\)/i.test(e.titulo))); if (tv) console.log('  ejemplo fusionado:', tv.fecha, tv.titulo, '|', tv.hora);
   // semana por secciones
   await p.goto(U + '/#semana'); await p.click('[data-a=fecha-hoy]'); await p.waitForSelector('[data-drop="sec:2026-11-09:FUNCIONARIOS"]'); const filas = await p.locator('.semana .wk-j b').allTextContents(); assert.deepEqual(filas.slice(0, 4), ['Actividades estudiantes', 'Actividades funcionarios', 'Talleres y reforzamientos', 'Reuniones y acciones externas']);
