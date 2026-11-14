@@ -217,7 +217,7 @@ h1 { color: var(--navy); }
 
 /* ===== semana: barras de sección a lo ancho y burbujas por tipo ===== */
 .wk2 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.wk2 > .wk-d, .wk2 > .wk-cell { border-right: 1px solid var(--line); } .wk2 > :nth-child(6n + 5) { border-right: 0; } /* 5 días + 1 barra por fila */
+.wk2 > .wk-d, .wk2 > .wk-cell { border-right: 1px solid var(--line); } .wk2 > .wk-d:nth-child(5), .wk2 > .wk-cell.u { border-right: 0; }
 .wk2 .wk-d { border-bottom: 1px solid var(--line); }
 .secbar { grid-column: 1 / -1; background: var(--navy); color: #fff; font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; padding: 8px 14px; border-top: 3px solid var(--gold); }
 .wk2 .wk-cell { padding: 8px 8px 38px; min-height: 90px; position: relative; }
@@ -252,3 +252,11 @@ h1 { color: var(--navy); }
 @media (max-width: 760px) { .drow { grid-template-columns: 1fr 1fr 30px; } .drow .dh { grid-column: 1 / 2; } }
 
 .toast { border-radius: 18px; line-height: 1.35; }
+
+/* barra de sección: fina y discreta (los días de la semana mandan) */
+.secbar { background: #f3f6fa; color: var(--navy-2); font-size: 10.5px; font-weight: 600; letter-spacing: .08em; padding: 3px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-left: 3px solid var(--gold); }
+.wk2 .wk-d { padding: 14px 12px; } .wk2 .wk-d b { font-size: 17px; font-weight: 600; color: var(--navy); }
+.wk2 .wk-cell { padding-bottom: 34px; } .wk2 .wk-cell.fila-tal { min-height: 0; background: #fbfcfd; }
+@media (max-width: 760px) { .secbar { font-size: 10px; } }
+.wk2 .wk-cell.fila-ref { padding-bottom: 6px; } .wk2 .wk-cell.fila-ref:empty, .wk2 .wk-cell.fila-ref .dlbl:only-child { } .wk2 .wk-cell.fila-tal { border-top: 0; }
+@media (max-width: 760px) { .wk2 .wk-cell.fila-tal:not(:has(.ev)) { display: none; } }

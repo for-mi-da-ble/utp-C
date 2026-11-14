@@ -75,6 +75,8 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
     extraescolares** (celeste, una burbuja).
   - *Actividades funcionarios:* 1) **trabajo con funcionarios** (amarillo pálido), 2) **reuniones fijas** (una burbuja),
     3) **reuniones externas** (gris, una burbuja).
+  - *Talleres y reforzamientos:* al final del día, en dos sub-filas (reforzamiento y talleres) alineadas entre días.
+  Las barras de sección son finas y discretas; mandan los días de la semana.
   Cada evento tiene una `seccion` (ESTUDIANTES, NOTA, FUNCIONARIOS o EXTERNAS).
 - **Hito vs. detalle:** un mismo evento se ve distinto según la vista. *SIMCE II° medio* es un bloque en el mensual y, en la
   semana, el PDF y el parte diario, despliega su `detalle`. En la ficha del evento, *Detalle por curso u horario* tiene filas de **hora · curso · actividad ·
@@ -97,7 +99,8 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   área, cursos, espacio, responsable) está en *Todos los detalles*. Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
 - **Limpieza (Ajustes):** *Revisar y unir repetidos* une un hito del mensual con la actividad semanal del mismo día y
   nombre: queda el hito (con su nombre) y recibe la hora y el detalle de la semana.
-- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas barras, burbujas y colores que la vista Semana.
+- **PDF carta:** siempre una sola hoja carta apaisada, con las mismas barras y burbujas que la vista Semana. Pensado para
+  imprimir: las burbujas llevan solo el borde de color (sin relleno) y el interlineado es más amplio.
 - **Cumpleaños:** hoja `09_Cumpleanos` (nombre, día y mes). Se cargan con los listados de docentes y asistentes del
   Mineduc (.csv) en *Agregar desde archivos originales*; del listado **no se guarda el RUN ni el año de nacimiento**. Si una semana viene muy cargada, achica la letra, acorta los
   detalles y, como último recurso, indica "+N más" en la celda.

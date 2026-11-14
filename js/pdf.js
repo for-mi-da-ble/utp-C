@@ -14,6 +14,7 @@ const txt = s => String(s == null ? '' : s).replace(/[–—]/g, '-').replace(/[
 const K = { nota: [[253, 230, 230], [224, 90, 90], [140, 29, 29]], cum: [[255, 226, 194], [240, 138, 36], [122, 59, 0]], est: [[225, 234, 250], [47, 98, 196], [24, 52, 110]],
   func: [[253, 246, 214], [214, 180, 58], [95, 75, 0]], ext: [[236, 238, 241], [138, 145, 158], [59, 65, 76]], ref: [[255, 240, 163], [226, 182, 0], [92, 71, 0]], tal: [[220, 242, 251], [42, 163, 214], [13, 79, 107]] };
 const NAVY = [32, 64, 112], GOLD = [240, 192, 48];
+const IL = 1.34; // interlineado del PDF (algo más amplio para leer impreso)
 
 // Una hoja carta apaisada: barra "Actividades estudiantes" y barra "Actividades funcionarios" a lo ancho, con las burbujas de
 // cada día en el mismo orden que la vista Semana. Si no cabe, se achica la letra, se acortan textos y, al final, se indica "+N más".
@@ -30,33 +31,35 @@ export async function pdfSemana(l) {
   const grupo = (k, t, ls) => ls.length ? [{ k, t, ls }] : [];
   const deEv = e => [{ b: e.hora && !horaEnT(e) ? txt(e.hora) : '', x: txt(e.titulo) }, ...det(e.detalle)];
   const deMat = (m, quita) => ({ b: m.ini, x: txt(quita ? m.titulo.replace(quita, '') : m.titulo) + (m.sala_id ? ` (${txt(L.nombreEspacio(m.sala_id))})` : '') });
-  const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
+  const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['REF', 'Talleres y reforzamientos'], ['TAL', '']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
     const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k);
-    if (barra === 'ESTUDIANTES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
+    if (barra === 'REF') return grupo('ref', 'Reforzamiento', L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, /^reforzamiento\s+/i)));
+    if (barra === 'TAL') return grupo('tal', 'Talleres extraescolares', L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, /^talleres?\s+(de\s+)?/i)));
+    if (barra === 'ESTUDIANTES') {
       return [...grupo('nota', 'Nota especial', de('NOTA').flatMap(deEv)), ...grupo('cum', 'Cumpleaños', cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ b: '', x: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : '') }))),
-        ...de('ESTUDIANTES').map(e => burbuja('est', e)), ...grupo('ref', 'Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO').map(m => deMat(m, /^reforzamiento\s+/i))),
-        ...grupo('tal', 'Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE').map(m => deMat(m, /^talleres?\s+(de\s+)?/i)))]; }
+        ...de('ESTUDIANTES').map(e => burbuja('est', e))]; }
     return [...de('FUNCIONARIOS').map(e => burbuja('func', e)), ...grupo('func', 'Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => deMat(m))), ...grupo('ext', 'Reuniones externas', de('EXTERNAS').flatMap(deEv))];
-  }) }));
+  }) })).filter((f, n) => n < 2 || f.cells.some(c => c.length)); // reforzamiento y talleres: sub-filas alineadas, solo si hay
+  if (filas.length > 2 && !filas[2].nombre) filas[2].nombre = 'Talleres y reforzamientos';
 
   // ---- medición ----
   const recorta = (ls, max, ancho) => { if (ls.length <= max) return ls; const r = ls.slice(0, max); let u = r[max - 1]; while (u.length > 1 && doc.getTextWidth(u + '...') > ancho) u = u.slice(0, -1); r[max - 1] = u.replace(/\s+$/, '') + '...'; return r; };
   const medir = (bu, Lv) => {
     const fs = Lv.fs, hs = fs - 1.4; bu.fs = fs; bu.hs = hs; let alto = 2 * PAD;
-    if (bu.h) alto += hs * 1.2;
-    if (bu.t) { doc.setFont('helvetica', 'bold').setFontSize(fs); bu.tl = recorta(doc.splitTextToSize(bu.t, IW), Lv.tm, IW); alto += bu.tl.length * fs * 1.12; }
+    if (bu.h) alto += hs * IL;
+    if (bu.t) { doc.setFont('helvetica', 'bold').setFontSize(fs); bu.tl = recorta(doc.splitTextToSize(bu.t, IW), Lv.tm, IW); alto += bu.tl.length * fs * IL; }
     for (const ln of bu.ls) {
-      if (ln.sub !== undefined) { ln.alto = hs * 1.15 + 3.5; alto += ln.alto; continue; }
+      if (ln.sub !== undefined) { ln.alto = hs * IL + 4; alto += ln.alto; continue; }
       doc.setFont('helvetica', 'bold').setFontSize(hs); ln.pw = ln.b ? doc.getTextWidth(ln.b + ' ') : 0;
-      doc.setFont('helvetica', 'normal'); ln.tl = recorta(doc.splitTextToSize(ln.x || '', IW - ln.pw), Lv.lm, IW - ln.pw); ln.alto = Math.max(1, ln.tl.length) * hs * 1.16; alto += ln.alto;
+      doc.setFont('helvetica', 'normal'); ln.tl = recorta(doc.splitTextToSize(ln.x || '', IW - ln.pw), Lv.lm, IW - ln.pw); ln.alto = Math.max(1, ln.tl.length) * hs * IL; alto += ln.alto;
     }
     if (bu.mas) alto += hs * 1.2;
     bu.alto = alto;
   };
   const altoCelda = c => c.reduce((s, bu) => s + bu.alto + GAP, 0) + (c.mas ? 10 : 0);
-  const altoFila = f => Math.max(16, ...f.cells.map(altoCelda)) + 3, BARRA = 15;
+  const altoFila = f => Math.max(16, ...f.cells.map(altoCelda)) + 3, BARRA = 11;
   const info = [['Foco', w && w.foco], ['Consejo (lunes)', w && w.consejo_tema], ['Reunión lineal (miércoles)', w && w.lineal_cursos]].filter(x => x[1]);
-  const TOP = 48 + (info.length ? 14 : 0) + 18, DISP = BOT - TOP - filas.length * (BARRA + 3);
+  const TOP = 48 + (info.length ? 14 : 0) + 18, DISP = BOT - TOP - filas.filter(f => f.nombre).length * (BARRA + 2);
   const NIV = []; for (const fs of [8.5, 8, 7.5, 7, 6.5, 6]) NIV.push({ fs, tm: 3, lm: 2 }); NIV.push({ fs: 6, tm: 2, lm: 1 }, { fs: 5.5, tm: 2, lm: 1 });
   const total = () => filas.reduce((s, f) => s + altoFila(f), 0);
   let Lv; for (Lv of NIV) { for (const f of filas) for (const c of f.cells) for (const bu of c) medir(bu, Lv); if (total() <= DISP) break; }
@@ -76,25 +79,26 @@ export async function pdfSemana(l) {
   if (info.length) { const iw = (W - 2 * M) / info.length;
     info.forEach(([k, v], i) => { const x = M + i * iw + 2; doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(...NAVY); const kw = doc.getTextWidth(txt(k).toUpperCase() + ':  '); doc.text(txt(k).toUpperCase() + ':', x, y + 9); doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(27, 37, 54); doc.text(recorta(doc.splitTextToSize(txt(v), iw - kw - 8), 1, iw - kw - 8)[0], x + kw, y + 9); });
     y += 14; }
-  doc.setFont('helvetica', 'bold').setFontSize(9);
+  doc.setFont('helvetica', 'bold').setFontSize(10);
   dias.forEach((f, i) => { const x = M + i * cw; doc.setFillColor(232, 238, 246).roundedRect(x + 1, y, cw - 2, 15, 4, 4, 'F'); doc.setTextColor(...NAVY).text(txt(`${L.DIAS[i + 1]} ${+f.slice(8)}`), x + cw / 2, y + 10.5, { align: 'center' }); });
   y += 18;
   const discontinua = (x1, x2, yy, col) => { doc.setDrawColor(...col).setLineWidth(0.7); for (let x = x1; x < x2; x += 4) doc.line(x, yy, Math.min(x + 2, x2), yy); };
   for (const f of filas) {
-    doc.setFillColor(...NAVY).roundedRect(M, y, W - 2 * M, BARRA, 3, 3, 'F'); doc.setFillColor(...GOLD).rect(M, y, 3, BARRA, 'F');
-    doc.setTextColor(255).setFont('helvetica', 'bold').setFontSize(8.5).text(txt(f.nombre).toUpperCase(), M + 10, y + 10.3); y += BARRA + 3;
+    if (f.nombre) {
+    doc.setDrawColor(200, 210, 224).setLineWidth(0.6).line(M, y + BARRA - 1, W - M, y + BARRA - 1); doc.setFillColor(...GOLD).rect(M, y + 1.5, 2, BARRA - 3, 'F');
+    doc.setTextColor(...NAVY).setFont('helvetica', 'bold').setFontSize(6.8).setCharSpace(0.6).text(txt(f.nombre).toUpperCase(), M + 6, y + BARRA - 3.6); doc.setCharSpace(0); y += BARRA + 2; }
     const alto = altoFila(f);
     f.cells.forEach((c, i) => {
       const x = M + i * cw; let yy = y;
       if (i) doc.setDrawColor(222, 228, 236).setLineWidth(0.5).line(x, y, x, y + alto - 3);
       for (const bu of c) {
-        const [bg, bd, tx] = K[bu.k]; doc.setFillColor(...bg).roundedRect(x + 2, yy, cw - 4, bu.alto, 2.5, 2.5, 'F'); doc.setFillColor(...bd).rect(x + 2, yy + 1.5, 2.2, bu.alto - 3, 'F');
+        const [, bd] = K[bu.k], tx = [27, 37, 54]; doc.setDrawColor(...bd).setLineWidth(0.9).roundedRect(x + 2.5, yy, cw - 5, bu.alto, 2.5, 2.5, 'S'); doc.setLineWidth(2.2).line(x + 3.6, yy + 1.8, x + 3.6, yy + bu.alto - 1.8); // solo borde: pensado para imprimir
         let ty = yy + PAD; const tx0 = x + PAD + 5;
-        if (bu.h) { ty += bu.hs; doc.setFont('helvetica', 'bold').setFontSize(bu.hs).setTextColor(...tx).text(bu.h, tx0, ty); ty += bu.hs * 0.2; }
-        if (bu.t) { doc.setFont('helvetica', 'bold').setFontSize(bu.fs).setTextColor(...tx); for (const t of bu.tl) { ty += bu.fs; doc.text(t, tx0, ty); ty += bu.fs * 0.12; } }
+        if (bu.h) { ty += bu.hs; doc.setFont('helvetica', 'bold').setFontSize(bu.hs).setTextColor(...tx).text(bu.h, tx0, ty); ty += bu.hs * (IL - 1); }
+        if (bu.t) { doc.setFont('helvetica', 'bold').setFontSize(bu.fs).setTextColor(...tx); for (const t of bu.tl) { ty += bu.fs; doc.text(t, tx0, ty); ty += bu.fs * (IL - 1); } }
         for (const ln of bu.ls) {
-          if (ln.sub !== undefined) { discontinua(tx0, x + cw - 6, ty + 2, bd); ty += 3.5 + bu.hs; doc.setFont('helvetica', 'bold').setFontSize(bu.hs - 0.3).setTextColor(...tx).text(ln.sub.toUpperCase(), tx0, ty); ty += bu.hs * 0.15; continue; }
-          let first = true; for (const t of (ln.tl.length ? ln.tl : [''])) { ty += bu.hs; if (first && ln.b) doc.setFont('helvetica', 'bold').setFontSize(bu.hs).setTextColor(...tx).text(ln.b, tx0, ty); doc.setFont('helvetica', 'normal').setFontSize(bu.hs).setTextColor(...tx).text(t, tx0 + ln.pw, ty); ty += bu.hs * 0.16; first = false; }
+          if (ln.sub !== undefined) { discontinua(tx0, x + cw - 6, ty + 2, bd); ty += 4 + bu.hs; doc.setFont('helvetica', 'bold').setFontSize(bu.hs - 0.3).setTextColor(...tx).text(ln.sub.toUpperCase(), tx0, ty); ty += bu.hs * (IL - 1); continue; }
+          let first = true; for (const t of (ln.tl.length ? ln.tl : [''])) { ty += bu.hs; if (first && ln.b) doc.setFont('helvetica', 'bold').setFontSize(bu.hs).setTextColor(...tx).text(ln.b, tx0, ty); doc.setFont('helvetica', 'normal').setFontSize(bu.hs).setTextColor(...tx).text(t, tx0 + ln.pw, ty); ty += bu.hs * (IL - 1); first = false; }
         }
         if (bu.mas) { ty += bu.hs; doc.setFont('helvetica', 'bold').setFontSize(bu.hs).setTextColor(194, 24, 91).text(`+${bu.mas} más (ver plataforma)`, tx0, ty); }
         yy += bu.alto + GAP;
@@ -106,7 +110,7 @@ export async function pdfSemana(l) {
   // pie: leyenda de colores
   let lx = M; const ly = H - 9; doc.setFontSize(6.5);
   for (const [k, t] of [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['ext', 'Reunión externa']]) {
-    doc.setFillColor(...K[k][0]).rect(lx, ly - 5.5, 7, 6, 'F'); doc.setFillColor(...K[k][1]).rect(lx, ly - 5.5, 1.8, 6, 'F'); doc.setFont('helvetica', 'normal').setTextColor(92, 106, 128).text(t, lx + 9, ly); lx += 9 + doc.getTextWidth(t) + 10; }
+    doc.setDrawColor(...K[k][1]).setLineWidth(0.9).rect(lx, ly - 5.5, 7, 6, 'S'); doc.setFont('helvetica', 'normal').setTextColor(92, 106, 128).text(t, lx + 9, ly); lx += 9 + doc.getTextWidth(t) + 10; }
   doc.setTextColor(138, 145, 158).text(txt(`Unidad Técnico-Pedagógica · ${new Date().toLocaleDateString('es-CL')}${ocultos ? ' · semana muy cargada: hay líneas que no caben' : ''}`), W - M, ly, { align: 'right' });
   const nombre = `Calendario_Semanal_${w && w.num ? 'S' + String(w.num).padStart(2, '0') : 'semana'}_${l}.pdf`;
   doc.save(nombre);

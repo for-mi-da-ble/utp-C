@@ -120,14 +120,15 @@ function boletin(l) {
   const dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i)), cum = L.cumplesEntre(l, L.addDias(l, 6));
   const ev = (e, pre) => [`   ${pre} ${e.hora ? e.hora + ' ' : ''}${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`, ...lineasDet(e.detalle, '       ')];
   const mat = (t, ms) => ms.length ? [`   • ${t}:`, ...ms.map(m => `       ${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' (' + L.nombreEspacio(m.sala_id) + ')' : ''}`)] : [];
-  for (const [barra, nombre] of [['ESTUDIANTES', 'ACTIVIDADES ESTUDIANTES'], ['FUNCIONARIOS', 'ACTIVIDADES FUNCIONARIOS']]) {
+  for (const [barra, nombre] of [['ESTUDIANTES', 'ACTIVIDADES ESTUDIANTES'], ['FUNCIONARIOS', 'ACTIVIDADES FUNCIONARIOS'], ['TALLERES', 'TALLERES Y REFORZAMIENTOS']]) {
     ln.push(nombre);
     dias.forEach((f, i) => {
       const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), b = [];
       if (barra === 'ESTUDIANTES') {
         de('NOTA').forEach(e => b.push(...ev(e, '[!]')));
         const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   Cumpleaños: ' + cs.map(c => c.nombre).join(', '));
-        de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•'))); const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
+        de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•')));
+      } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
         b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
       } else {
         de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); b.push(...mat('Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 })));
@@ -157,16 +158,18 @@ function celdaSemana(f, i, barra, E, dups, cum) {
     h += E ? chips(notas) : grupo('nota', 'Nota especial', notas.map(linEv));                                   // 1. notas especiales (rojo pálido)
     h += grupo('cum', '🎂 Cumpleaños', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
     h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
-    const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
-    h += grupo('ref', 'Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO').map(m => linMat(m, /^reforzamiento\s+/i)));   // 4. reforzamiento (amarillo)
-    h += grupo('tal', 'Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE').map(m => linMat(m, /^talleres?\s+(de\s+)?/i))); // 5. talleres (celeste)
+  } else if (barra === 'REF' || barra === 'TAL') { // al final del día, en sub-filas propias: así quedan alineados entre días
+    const ref = barra === 'REF', rut = L.rutinaDe(f, ref ? { REFORZAMIENTO: 1 } : { TALLER_ACLE: 1 });
+    h += ref ? grupo('ref', 'Reforzamiento', rut.map(m => linMat(m, /^reforzamiento\s+/i))) : grupo('tal', 'Talleres extraescolares', rut.map(m => linMat(m, /^talleres?\s+(de\s+)?/i)));
   } else {
     h += chips(de('FUNCIONARIOS'));                                                                                // 1. trabajo con funcionarios (amarillo pálido)
     h += grupo('func', 'Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => linMat(m)));                       // 2. reuniones fijas
     const ext = de('EXTERNAS'); h += E ? chips(ext) : grupo('ext', 'Reuniones externas', ext.map(linEv));         // 3. externas (gris)
   }
-  const add = ed() ? `<button class="add" data-a="nuevo-ev" data-f="${f}" data-s="${barra}" aria-label="Agregar actividad">${ic('plus')}</button>` : '';
-  return `<div class="wk-cell" data-drop="sec:${f}:${barra}"><span class="dlbl">${L.DIAS[i + 1]} ${L.fechaCorta(f)}</span>${h}${add}</div>`;
+  const fija = barra === 'REF' || barra === 'TAL';
+  const add = fija ? (adm() && barra === 'TAL' ? `<button class="add" data-a="nueva-mat" data-d="${i + 1}" aria-label="Agregar taller o reforzamiento">${ic('plus')}</button>` : '')
+    : ed() ? `<button class="add" data-a="nuevo-ev" data-f="${f}" data-s="${barra}" aria-label="Agregar actividad">${ic('plus')}</button>` : '';
+  return `<div class="wk-cell ${fija ? 'fila-tal fila-' + barra.toLowerCase() : ''} ${i === 4 ? 'u' : ''}" ${fija ? '' : `data-drop="sec:${f}:${barra}"`}><span class="dlbl">${L.DIAS[i + 1]} ${L.fechaCorta(f)}</span>${h}${add}</div>`;
 }
 function vSemana() {
   const l = lunes(), w = L.semanaDe(l), dis = ed() && w ? '' : 'disabled', E = ui.edit && ed();
@@ -175,8 +178,10 @@ function vSemana() {
   const dups = new Set(); let ndup = 0, nev = 0; if (E) for (const f of dias) for (const id of L.duplicados(L.eventosDe(f))) { dups.add(id); ndup++; }
   for (const f of dias) nev += L.eventosDe(f).length;
   let g = '<div class="wk2">' + dias.map((f, i) => { const n = L.ausenciasDe(f).length; return `<div class="wk-d ${f === L.hoy() ? 'today' : ''}" data-a="ir-dia" data-f="${f}"><b>${L.DIAS[i + 1]}</b><span>${L.fechaCorta(f)}</span>${n ? `<i class="tag pink">${n} aus.</i>` : ''}</div>`; }).join('');
-  for (const [barra, nombre] of [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios']]) {
-    g += `<div class="secbar">${nombre}</div>` + dias.map((f, i) => celdaSemana(f, i, barra, E, dups, cum)).join('');
+  const hayRef = dias.some(f => L.rutinaDe(f, { REFORZAMIENTO: 1 }).length), hayTal = dias.some(f => L.rutinaDe(f, { TALLER_ACLE: 1 }).length);
+  for (const [barra, nombre] of [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['REF', 'Talleres y reforzamientos'], ['TAL', '']]) {
+    if ((barra === 'REF' && !hayRef) || (barra === 'TAL' && !hayTal && !adm())) continue;
+    g += (nombre || (barra === 'TAL' && !hayRef) ? `<div class="secbar">${nombre || 'Talleres y reforzamientos'}</div>` : '') + dias.map((f, i) => celdaSemana(f, i, barra, E, dups, cum)).join('');
   }
   g += '</div>';
   const ley = [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['ext', 'Reunión externa']];
