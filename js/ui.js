@@ -47,8 +47,10 @@ export function leerForm(root) { const o = {}; for (const el of root.querySelect
 
 /** Arrastrar y soltar con Pointer Events: funciona con mouse y con dedo (pulsación larga). */
 export function initDrag(onDrop) {
-  let st = null, ghost = null, over = null, tragar = false;
-  const fin = () => { if (st) clearTimeout(st.t); if (ghost) ghost.remove(); if (over) over.classList.remove('dropover'); if (st && st.el) st.el.classList.remove('dragging'); document.body.classList.remove('arrastrando'); st = ghost = over = null; };
+  let st = null, ghost = null, over = null, tragar = false, vy = 0, rafS = 0, ult = null;
+  // Desplazamiento automático: al acercar el elemento al borde superior o inferior, la página avanza sola.
+  const auto = () => { rafS = 0; if (!st || !st.active || !vy) return; window.scrollBy(0, vy); if (ult) { const d = destino(ult[0], ult[1]); if (d !== over) { if (over) over.classList.remove('dropover'); over = d; if (over) over.classList.add('dropover'); } } rafS = requestAnimationFrame(auto); };
+  const fin = () => { vy = 0; ult = null; if (st) clearTimeout(st.t); if (ghost) ghost.remove(); if (over) over.classList.remove('dropover'); if (st && st.el) st.el.classList.remove('dragging'); document.body.classList.remove('arrastrando'); st = ghost = over = null; };
   const start = () => {
     st.active = true; st.el.classList.add('dragging'); document.body.classList.add('arrastrando');
     ghost = st.el.cloneNode(true); ghost.classList.add('ghost'); ghost.style.width = st.el.offsetWidth + 'px'; document.body.appendChild(ghost); pos(st.x, st.y);
@@ -64,7 +66,9 @@ export function initDrag(onDrop) {
   document.addEventListener('pointermove', e => {
     if (!st) return;
     if (!st.active) { if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 8) { if (st.touch) fin(); else start(); } if (!st || !st.active) return; }
-    pos(e.clientX, e.clientY);
+    pos(e.clientX, e.clientY); ult = [e.clientX, e.clientY];
+    const B = 70, h = window.innerHeight; vy = e.clientY < B ? -Math.ceil((B - e.clientY) / 4) : e.clientY > h - B ? Math.ceil((e.clientY - (h - B)) / 4) : 0;
+    if (vy && !rafS) rafS = requestAnimationFrame(auto);
     const d = destino(e.clientX, e.clientY); if (d !== over) { if (over) over.classList.remove('dropover'); over = d; if (over) over.classList.add('dropover'); }
   });
   document.addEventListener('touchmove', e => { if (st && st.active) e.preventDefault(); }, { passive: false });

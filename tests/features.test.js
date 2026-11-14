@@ -24,9 +24,13 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   console.log('✓ cada línea de celda = un evento, con fecha, área y jornada correctas');
   assert((await imp(cal, 'No se encontraron')).includes('No se encontraron')); console.log('✓ reimportar no duplica');
   // Arrastrar evento en calendario mensual (mouse)
-  const arrastrar = async (from, to) => { await from.waitFor(); await to.waitFor(); await p.waitForTimeout(80); const a = await from.boundingBox(), z = await to.boundingBox(); await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down(); await p.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 3 }); await p.mouse.move(z.x + z.width / 2, z.y + z.height - 12, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(150); };
+  const arrastrar = async (from, to) => { await from.waitFor(); await to.waitFor(); await p.waitForTimeout(80); const a = await from.boundingBox(), z = await to.boundingBox(); await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down(); await p.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 3 }); await p.mouse.move(z.x + z.width / 2, z.y + Math.min(z.height - 12, 30), { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(150); };
   const ev = t => p.evaluate(t => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo.includes(t)), t);
-  await p.goto(U + '/#calendario'); await arrastrar(p.locator('.ev', { hasText: 'PAES 4' }), p.locator('[data-drop="dia:2026-11-20"]'));
+  await p.goto(U + '/#calendario'); await p.evaluate(() => scrollTo(0, 0)); { // arrastrar hacia un día fuera de pantalla: la página debe desplazarse sola
+    const a = await p.locator('.ev', { hasText: 'PAES 4' }).boundingBox(), vh = p.viewportSize().height; await p.mouse.move(a.x + 20, a.y + 8); await p.mouse.down(); await p.mouse.move(a.x + 40, a.y + 30, { steps: 3 });
+    const x = (await p.locator('[data-drop="dia:2026-11-20"]').boundingBox()).x + 40; await p.mouse.move(x, vh - 8, { steps: 5 });
+    for (let i = 0; i < 80; i++) { const z = await p.locator('[data-drop="dia:2026-11-20"]').boundingBox(); if (z.y + 30 < vh - 80 && z.y + 30 > 80) break; await p.waitForTimeout(40); }
+    const z = await p.locator('[data-drop="dia:2026-11-20"]').boundingBox(); await p.mouse.move(z.x + 40, z.y + 30, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(150); }
   assert.equal((await ev('PAES 4')).fecha, '2026-11-20'); assert.equal(await p.locator('.modal').count(), 0, 'soltar no debe abrir modal'); console.log('✓ arrastrar evento entre días (mes)');
   // Semana: mover a otro día y jornada
   await p.goto(U + '/#semana'); await arrastrar(p.locator('.ev', { hasText: 'Trabün' }), p.locator('[data-drop="cel:2026-11-13:TARDE"]'));
@@ -43,7 +47,7 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   await tp('touchStart', s2.x + 30, s2.y + 10); await m.clock.runFor(450); await tp('touchMove', s2.x + 30, s2.y - 20); await tp('touchMove', dst.x + 40, dst.y + 20); await tp('touchEnd'); await m.waitForTimeout(200);
   const sp = await m.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo.includes('Salida pedagógica'))); assert.equal(sp.fecha, '2026-11-10'); console.log('✓ arrastre táctil con pulsación larga (celular)');
   // Colisión de espacio
-  await p.goto(U + '/#calendario'); await p.click('.pacts [data-a=nuevo-ev]'); await p.fill('#f_titulo', 'Ensayo obra de teatro'); await p.fill('#f_fecha', '2026-11-09'); await p.fill('#f_hora', '10:45-12:00'); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.waitForSelector('#colis .alert');
+  await p.goto(U + '/#calendario'); await p.click('.pacts [data-a=nuevo-ev]'); await p.fill('#f_titulo', 'Ensayo obra de teatro'); await p.fill('#f_fecha', '2026-11-09'); await p.fill('#f_hora', '10:45-12:00'); await p.click('[data-a=mas-det]'); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.waitForSelector('#colis .alert');
   console.log('✓ alerta de choque:', (await p.textContent('#colis')).replace(/\s+/g, ' ').slice(0, 110)); await p.click('[data-a=guardar]');
   // Exportar y restaurar
   await p.goto(U + '/#config'); const [dl] = await Promise.all([p.waitForEvent('download'), p.click('[data-a=exportar]')]); const out = path.join(tmp, 'export.xlsx'); await dl.saveAs(out);

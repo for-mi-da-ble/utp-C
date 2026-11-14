@@ -240,7 +240,7 @@ function importarUnificada(X, wb) {
   for (const e of tablas.eventos || []) if (!/^\d{4}-\d{2}-\d{2}$/.test(e.fecha || '')) throw new Error(`Fecha inválida en 02_Eventos_Calendario (id ${e.id}): "${e.fecha || ''}". Usa texto AAAA-MM-DD.`);
   for (const b of tablas.bloques || []) if (!(tmin(b.fin) > tmin(b.ini)) || !(b.dia >= 1 && b.dia <= 5)) throw new Error(`Bloque inválido en 08_Bloques_Docentes (id ${b.id}): revisa dia, ini y fin.`);
   for (const w of tablas.semanas || []) if (!/^\d{4}-\d{2}-\d{2}$/.test(w.inicio || '')) throw new Error(`Fecha inválida en 01_Semanas_Clases (id ${w.id}).`);
-  for (const t in ESQUEMA) if (tablas[t]) { bulk(t, tablas[t], true); res.push(`${tablas[t].length} ${t}`); }
+  for (const t in ESQUEMA) if (tablas[t]) { bulk(t, tablas[t], true); res.push(`${tablas[t].length} ${{ cumpleanos: 'cumpleaños', matriz: 'actividades fijas' }[t] || t}`); }
   return `Base unificada cargada: ${res.join(', ')}.`;
 }
 export async function exportarLibro() {

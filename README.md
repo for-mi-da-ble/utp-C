@@ -73,6 +73,15 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   de jornada, editarla o eliminarla (con *Deshacer*), y marca en amarillo los posibles duplicados del mismo día.
   **PDF carta** descarga el calendario semanal en tamaño carta apaisado para adjuntar al correo.
   **Cumpleaños de la semana**: se agregan con nombre, día y mes (hoja `09_Cumpleanos`), y salen en el boletín y el PDF.
+- **Calendario mensual:** muestra la hora de cada evento (si solo está en el detalle, el rango de horas con "varios horarios")
+  y, en las semanas lectivas, la **rutina semanal** (reuniones fijas, talleres ACLE, reforzamientos) con filtros por tipo.
+  No se muestra en fines de semana, recesos ni días con un evento "Feriado"/"Interferiado".
+- **Eventos:** el formulario pide solo actividad, fecha, horario y jornada; el resto está en *Todos los detalles*.
+  Escribir el horario ajusta la jornada sola (desde las 14:00 = tarde).
+- **Limpieza (Ajustes):** *Revisar y fusionar repetidos* une los eventos que aparecen el mismo día en el calendario
+  anual y el semanal (deja uno, con el título más completo y la hora y el detalle del semanal).
+- **PDF carta:** siempre una sola hoja carta apaisada. Si una semana viene muy cargada, achica la letra, acorta los
+  detalles y, como último recurso, indica "+N más" en la celda.
 - **Calendario:** marzo a diciembre; cada evento es independiente y se arrastra entre días. En celular: mantener pulsado y arrastrar.
 - **Horarios:** Ciclo → Curso, por docente/PIE, y sábana comparativa. Muestra alertas de eventos del curso y ausencias de la semana.
 - **Espacios:** por edificio, con capacidad, encargado, ocupación por bloque y aviso de choques al reservar.
@@ -105,5 +114,6 @@ node tests/mock-backend.js &             # simulador de Apps Script en :8766
 node tests/features.test.js BD.xlsx /tmp # arrastre, importación, choques, base unificada (BD = planilla original BD_AppSheet)
 node tests/sync.test.js BD.xlsx          # multiusuario, roles y seguridad
 node tests/semana.test.js Base_Unificada.xlsx /tmp  # modo edición, cumpleaños y PDF
+node tests/calendario.test.js Base_Unificada.xlsx /tmp  # mensual, formulario, repetidos y PDF de 1 hoja (44 semanas)
 ```
 (requieren Playwright).

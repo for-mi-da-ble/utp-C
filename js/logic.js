@@ -170,3 +170,45 @@ export function duplicados(evs) {
   for (const e of evs) { const k = clave(e.titulo); if (k.length >= 4 && vistos.some(v => v === k || (Math.min(v.length, k.length) >= 8 && (v.includes(k) || k.includes(v))))) dup.add(e.id); vistos.push(k); }
   return dup;
 }
+
+// ---------- hora visible ----------
+/** Hora para mostrar: la del evento o, si no tiene, el rango de horas que aparece en su detalle. */
+export function horaVisible(e) {
+  if (e.hora) return { txt: String(e.hora).replace('-', '–'), varios: false };
+  const t = [...String(e.nota || '').matchAll(/\b(\d{1,2})[:.](\d{2})\b/g)].map(m => +m[1] * 60 + +m[2]).filter(x => x >= 420 && x <= 1260).sort((a, b) => a - b);
+  if (!t.length) return null;
+  const f = x => String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0');
+  return { txt: t.length > 1 && t[t.length - 1] !== t[0] ? `${f(t[0])}–${f(t[t.length - 1])}` : f(t[0]), varios: t.length > 1 };
+}
+
+// ---------- rutina semanal (matriz fija) en el calendario ----------
+const RE_SIN_CLASES = /\b(feriado|interferiado|vacaciones|receso|suspension de clases|sin clases)\b/;
+/** Actividades fijas que ocurren en una fecha: solo en semanas lectivas y no en días marcados como feriado. */
+export function rutinaDe(fecha, cats) {
+  const d = dow(fecha); if (d > 5) return [];
+  const w = semanaDe(fecha); if (!w || !w.num) return [];
+  if (all('eventos').some(e => e.fecha === fecha && RE_SIN_CLASES.test(norm(e.titulo)))) return [];
+  return all('matriz').filter(m => +m.dia === d && (!cats || cats[m.categoria])).sort((a, b) => tmin(a.ini) - tmin(b.ini));
+}
+
+// ---------- duplicados entre el calendario anual y el semanal ----------
+const claveTitulo = t => norm(t).replace(/\b(iv|iii|ii)(?=\s*°|\s*medio)/g, m => ({ ii: 2, iii: 3, iv: 4 }[m])).replace(/[^a-z0-9]/g, '');
+function mismoTitulo(a, b) { const x = claveTitulo(a), y = claveTitulo(b); return x.length >= 4 && (x === y || (Math.min(x.length, y.length) >= 6 && (x.includes(y) || y.includes(x)))); }
+/** Pares [anual, semanal] del mismo día con título equivalente. */
+export function paresDuplicados() {
+  const porDia = {}; for (const e of all('eventos')) (porDia[e.fecha] = porDia[e.fecha] || []).push(e);
+  const pares = [];
+  for (const f in porDia) {
+    const an = porDia[f].filter(e => e.tipo === 'Calendario anual'), se = porDia[f].filter(e => e.tipo !== 'Calendario anual'), usados = new Set();
+    for (const a of an) { const b = se.find(x => !usados.has(x.id) && mismoTitulo(a.titulo, x.titulo)); if (b) { usados.add(b.id); pares.push([a, b]); } }
+  }
+  return pares.sort((x, y) => x[0].fecha.localeCompare(y[0].fecha));
+}
+/** Une un par en un solo evento: título más descriptivo y hora/detalle/espacio del que los tenga. */
+export function fusionar(a, b) {
+  const hora = a.hora || b.hora || '', notas = [...new Set([a.nota, b.nota].filter(Boolean).flatMap(n => String(n).split('\n')))];
+  return { ...a, titulo: String(b.titulo).length > String(a.titulo).length + 3 ? b.titulo : a.titulo, hora,
+    jornada: hora ? jornadaDe(hora) : (a.jornada !== 'AMBAS' ? a.jornada : b.jornada || 'AMBAS'), nota: notas.join('\n'),
+    espacio_id: a.espacio_id || b.espacio_id || '', cursos: a.cursos || b.cursos || '', responsable: a.responsable || b.responsable || '',
+    area: a.area !== 'UTP' ? a.area : b.area || a.area, tipo: 'Calendario anual + semanal' };
+}

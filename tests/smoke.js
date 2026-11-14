@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
   const t0 = Date.now(); await p.click('[data-a=guardar]'); await p.waitForSelector('.afe'); console.log('ms hasta ver cobertura:', Date.now() - t0, 'bloques afectados:', await p.locator('.afe').count());
   await p.locator('.afe .chip.lime, .afe .chip.violet').first().click(); await p.locator('.afe:not(.ok) .chip.dark').first().click();
   // evento
-  await p.click('[data-a=nuevo-ev]'); await p.fill('#f_titulo', 'Ensayo SIMCE 2° medios'); await p.fill('#f_hora', '09:45-11:15'); await p.fill('#f_cursos', '2° MEDIO A, 2° MEDIO B'); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.waitForTimeout(100); await shot('03-modal-evento'); await p.click('[data-a=guardar]');
+  await p.click('[data-a=nuevo-ev]'); await p.fill('#f_titulo', 'Ensayo SIMCE 2° medios'); await p.fill('#f_hora', '09:45-11:15'); await p.click('[data-a=mas-det]'); await p.fill('#f_cursos', '2° MEDIO A, 2° MEDIO B'); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.waitForTimeout(100); await shot('03-modal-evento'); await p.click('[data-a=guardar]');
   await shot('01-hoy');
   await p.click('[data-a=parte]'); await shot('04-parte'); console.log((await p.inputValue('.mono')).split('\n').slice(0, 14).join('\n')); await p.keyboard.press('Escape');
   for (const v of ['semana', 'calendario', 'horarios', 'espacios']) { await p.goto('http://localhost:8765/#' + v); await shot('05-' + v); }

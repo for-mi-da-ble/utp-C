@@ -163,3 +163,21 @@ textarea.mono { font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; whit
 .btn.on { background: var(--amber); border-color: var(--amber); color: #3b2600; }
 .chip.cum { background: #fff0f5; border-color: #ffd0e0; color: #8a1445; font-weight: 400; } .chip.cum b { font-weight: 600; }
 .toast.act { pointer-events: auto; display: flex; gap: 14px; align-items: center; } .toast button { color: #ffd166; font-weight: 600; text-decoration: underline; }
+
+/* rutina en el calendario mensual */
+.rutbox { margin-top: 4px; border-top: 1px dashed var(--line); padding-top: 3px; }
+.rutlbl { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); margin: 0 0 2px 2px; }
+.rut { font-size: 11px; line-height: 1.3; color: #4b5260; padding: 1px 4px 1px 6px; border-left: 3px solid var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px; }
+.rut b { font-weight: 600; } .rut.amber { border-color: var(--amber); } .rut.green { border-color: var(--green); } .rut[data-a] { cursor: pointer; } .rut[data-a]:hover { background: var(--soft); }
+.dot.gray { background: var(--gray); } .plbl { font-size: 12.5px; color: var(--mut); margin-right: 2px; white-space: nowrap; }
+.evh i { font-style: normal; font-weight: 400; }
+/* formulario de evento: detalles plegables */
+.form .more { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 14px; color: var(--blue); padding: 6px 2px; }
+.form .more::after { content: '▾'; font-size: 11px; } .form .more[aria-expanded=true]::after { content: '▴'; }
+.form .more i { font-style: normal; font-size: 11px; background: #e3ecff; border-radius: 99px; padding: 1px 7px; }
+.form .det { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; } .form .det .fld { grid-column: span 6; } .form .det .fld.half { grid-column: span 3; }
+@media (max-width: 760px) { .form .det .fld.half { grid-column: span 6; } .rut { font-size: 12px; } }
+/* revisión de duplicados */
+.dups { display: grid; gap: 6px; margin-top: 12px; } .dup { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; cursor: pointer; }
+.dup input { width: 18px; height: 18px; min-height: 0; margin-top: 2px; flex: none; } .dup .df { flex: none; width: 52px; color: var(--mut); font-size: 12.5px; } .dup small { color: var(--mut); }
+.row.sm { gap: 6px; margin-top: 10px; }
