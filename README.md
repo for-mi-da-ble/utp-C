@@ -70,16 +70,18 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
   puede cubrir (No lectivo / Aula de recursos PIE, ordenados por quien lleva menos reemplazos en el mes). Un toque asigna.
   *Generar parte de las 08:00* arma el texto y la tabla para Gmail o WhatsApp.
 - **Semana:** dos barras a lo ancho de los cinco días, como el PDF. Orden de las burbujas de cada día:
-  - *Actividades estudiantes:* 1) **nota especial** (rojo pálido: plazos, feriados, cambios de horario), 2) **¡Feliz cumpleaños!**
+  - *Actividades estudiantes:* 1) **notas especiales** (rojo pálido), 2) **¡Feliz cumpleaños!**
     (naranja), 3) **actividades** (azul), 4) **reforzamiento** (amarillo, una burbuja con todas sus líneas), 5) **talleres
     extraescolares** (celeste, una burbuja).
-  - *Actividades funcionarios:* 1) **trabajo con funcionarios** (amarillo pálido), 2) **reuniones** fijas (consejos,
+  - *Actividades funcionarios:* 0) **notas especiales** (rojo pálido), 1) **trabajo con funcionarios** (amarillo pálido), 2) **reuniones** fijas (consejos,
     lineales), 3) **reuniones de departamento** del día (una burbuja), 4) **trabajo colaborativo PIE** (rosado, una burbuja),
     5) **reuniones externas** (gris, una burbuja).
   - *Talleres y reforzamientos:* al final del día, en dos sub-filas (reforzamiento y talleres) alineadas entre días.
   Las barras de sección son finas y discretas; mandan los días de la semana. Ya no hay franja de foco / consejo /
   reunión lineal. Los talleres se nombran sin la palabra "Taller" ("Ajedrez - 2° ciclo").
-  Cada evento tiene una `seccion` (ESTUDIANTES, NOTA, FUNCIONARIOS o EXTERNAS).
+  Cada evento tiene una `seccion` (ESTUDIANTES, FUNCIONARIOS o EXTERNAS) y la marca `especial` (casilla *Nota especial*:
+  plazos, feriados, cambios de horario), que lo pone primero y en rojo dentro de **su** sección. Dentro de cada sección,
+  las actividades **sin horario van primero** y luego por hora.
 - **Hito vs. detalle:** un mismo evento se ve distinto según la vista. *SIMCE II° medio* es un bloque en el mensual y, en la
   semana, el PDF y el parte diario, despliega su `detalle`. En la ficha del evento, *Detalle por curso u horario* tiene filas de **hora · curso · actividad ·
   lugar** y **subsecciones** (p. ej. una por ciclo) que se separan con línea punteada. Si cada curso tiene su horario,

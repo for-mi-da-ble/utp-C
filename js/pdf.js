@@ -54,14 +54,14 @@ export async function pdfSemana(l) {
   const agrupa = (ms, k, t, quita) => { if (!ms.length) return []; const h0 = horaCol(ms[0].ini)[0];
     return [{ h: [h0], k, t, x: '', lug: '', det: ms.map(m => ({ b: horaCol(m.ini)[0] === h0 && ms.every(o => o.ini === m.ini) ? '' : horaCol(m.ini)[0], x: txt(m.titulo.replace(quita, '')) + (sala(m) ? ` (${sala(m)})` : '') })) }]; };
   const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['TALLERES', 'Talleres y reforzamientos']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
-    const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k);
+    const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), notas = b => evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === b).map(e => deEvento(e, 'nota'));
     if (barra === 'TALLERES') return [...L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, 'ref', /^reforzamiento\s+/i)), ...L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, 'tal', /^taller(?:es)?\s+(de\s+)?/i))];
     if (barra === 'ESTUDIANTES') {
       const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : ''));
-      return [...de('NOTA').map(e => deEvento(e, 'nota')), ...(cs.length ? [{ h: ['Día'], k: 'cum', t: '', x: cs.join(' · '), lug: '', det: [] }] : []), ...de('ESTUDIANTES').map(e => deEvento(e))];
+      return [...notas('ESTUDIANTES'), ...(cs.length ? [{ h: ['Día'], k: 'cum', t: '', x: cs.join(' · '), lug: '', det: [] }] : []), ...de('ESTUDIANTES').map(e => deEvento(e))];
     }
     const reu = L.rutinaDe(f, { REUNION_FIJA: 1 });
-    return [...de('FUNCIONARIOS').map(e => deEvento(e)), ...reu.filter(m => L.tipoReunion(m) === 'GEN').map(m => deMat(m)),
+    return [...notas('FUNCIONARIOS'), ...de('FUNCIONARIOS').map(e => deEvento(e)), ...reu.filter(m => L.tipoReunion(m) === 'GEN').map(m => deMat(m)),
       ...agrupa(reu.filter(m => L.tipoReunion(m) === 'DEPTO'), null, 'Reuniones de departamento', /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i),
       ...agrupa(reu.filter(m => L.tipoReunion(m) === 'PIE'), 'pie', 'Trabajo colaborativo', /^trabajo colaborativo pie\s*[-–:]?\s*/i),
       ...de('EXTERNAS').map(e => deEvento(e, 'ext'))];

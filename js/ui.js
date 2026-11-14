@@ -37,13 +37,14 @@ export function campos(fs, val) {
     const v = val[f.k] == null ? '' : val[f.k], a = `name="${f.k}" id="f_${f.k}" ${f.req ? 'required' : ''}`;
     let c;
     if (f.type === 'select') c = `<select ${a}>${f.options.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return o.group ? `<optgroup label="${esc(o.group)}">${o.items.map(([x, y]) => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(y)}</option>`).join('')}</optgroup>` : `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
+    else if (f.type === 'check') c = `<label class="chk"><input type="checkbox" name="${f.k}" value="SI" ${v === 'SI' ? 'checked' : ''}><span>${esc(f.texto || '')}</span></label>`;
     else if (f.type === 'seg') c = `<div class="seg">${f.options.map(([ov, ol]) => `<label><input type="radio" name="${f.k}" value="${esc(ov)}" ${String(ov) === String(v) ? 'checked' : ''}><span>${esc(ol)}</span></label>`).join('')}</div>`;
     else if (f.type === 'textarea') c = `<textarea ${a} rows="3" maxlength="1500">${esc(v)}</textarea>`;
     else c = `<input ${a} type="${f.type || 'text'}" value="${esc(v)}" maxlength="${f.max || 200}" ${f.list ? `list="${f.list}"` : ''} ${f.ph ? `placeholder="${esc(f.ph)}"` : ''} autocomplete="off">`;
-    return `<div class="fld ${f.w || ''}"><label for="f_${f.k}">${esc(f.label)}</label>${c}${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`;
+    return `<div class="fld ${f.w || ''}">${f.label ? `<label for="f_${f.k}">${esc(f.label)}</label>` : ''}${c}${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</div>`;
   }).join('');
 }
-export function leerForm(root) { const o = {}; for (const el of root.querySelectorAll('[name]')) { if (el.type === 'radio') { if (el.checked) o[el.name] = el.value; } else o[el.name] = el.value.trim(); } return o; }
+export function leerForm(root) { const o = {}; for (const el of root.querySelectorAll('[name]')) { if (el.type === 'radio') { if (el.checked) o[el.name] = el.value; } else if (el.type === 'checkbox') o[el.name] = el.checked ? 'SI' : 'NO'; else o[el.name] = el.value.trim(); } return o; }
 
 /** Arrastrar y soltar con Pointer Events: funciona con mouse y con dedo (pulsación larga). */
 export function initDrag(onDrop) {

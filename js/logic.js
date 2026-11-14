@@ -128,8 +128,9 @@ export function resumenDia(fecha) {
 
 // ---------- eventos ----------
 export function eventosDe(fecha) {
-  const o = { MANANA: 0, AMBAS: 1, TARDE: 2 };
-  return all('eventos').filter(e => e.fecha === fecha).sort((a, b) => (o[a.jornada] - o[b.jornada]) || String(a.hora || '').localeCompare(String(b.hora || '')));
+  // primero las actividades sin horario, luego por hora de inicio
+  const t = e => e.hora ? tmin(e.hora) : -1, o = { MANANA: 0, AMBAS: 1, TARDE: 2 };
+  return all('eventos').filter(e => e.fecha === fecha).sort((a, b) => (t(a) - t(b)) || (o[a.jornada] - o[b.jornada]) || String(a.titulo).localeCompare(String(b.titulo)));
 }
 export function eventoAfectaCurso(e, curso) {
   const t = norm(e.cursos); if (!t) return false;
@@ -197,11 +198,12 @@ export function rutinaDe(fecha, cats) {
 export const enMensual = e => e.mensual === 'SI';
 /** Normaliza nombres antiguos de columnas (nota → detalle, tipo → origen) y completa `mensual`. Devuelve null si no cambia. */
 export function migrarEvento(e) {
-  if (e.nota === undefined && e.tipo === undefined && e.mensual) return null;
+  if (e.nota === undefined && e.tipo === undefined && e.mensual && e.seccion !== 'NOTA') return null;
   const o = { ...e };
   if (o.nota !== undefined) { if (!o.detalle) o.detalle = o.nota; delete o.nota; }
   if (o.tipo !== undefined) { if (!o.origen) o.origen = o.tipo; delete o.tipo; }
   if (!o.mensual) o.mensual = /anual/i.test(o.origen || '') ? 'SI' : 'NO';
+  if (o.seccion === 'NOTA') { o.especial = 'SI'; o.seccion = seccionDe(o); } // la sección "Nota especial" pasa a ser una marca
   return o;
 }
 const claveTitulo = t => norm(t).replace(/\b(iv|iii|ii)(?=\s*°|\s*medio)/g, m => ({ ii: 2, iii: 3, iv: 4 }[m])).replace(/[^a-z0-9]/g, '');
@@ -225,22 +227,25 @@ export function fusionar(a, b) {
   const hora = a.hora || b.hora || '', lineas = [...new Set([a.detalle, b.detalle].filter(Boolean).flatMap(n => String(n).split('\n')))];
   return { ...a, mensual: 'SI', hora, jornada: hora ? jornadaDe(hora) : (a.jornada !== 'AMBAS' ? a.jornada : b.jornada || 'AMBAS'), detalle: lineas.join('\n'),
     espacio_id: a.espacio_id || b.espacio_id || '', cursos: a.cursos || b.cursos || '', responsable: a.responsable || b.responsable || '',
-    area: a.area !== 'UTP' ? a.area : b.area || a.area, seccion: b.seccion || a.seccion || seccionDe(b), origen: 'Calendario anual + semanal' };
+    area: a.area !== 'UTP' ? a.area : b.area || a.area, seccion: b.seccion || a.seccion || seccionDe(b), especial: esEspecial(a) || esEspecial(b) ? 'SI' : (a.especial || b.especial || ''), origen: 'Calendario anual + semanal' };
 }
 
 // ---------- secciones del calendario semanal (como la planilla del colegio) ----------
-export const SECCIONES = { NOTA: 'Nota especial', ESTUDIANTES: 'Actividades estudiantes', FUNCIONARIOS: 'Actividades funcionarios', EXTERNAS: 'Reuniones externas' };
+export const SECCIONES = { ESTUDIANTES: 'Actividades estudiantes', FUNCIONARIOS: 'Actividades funcionarios', EXTERNAS: 'Reuniones externas' };
+/** "Nota especial" (plazo, feriado, cambio de horario) es una marca del evento, no una sección: puede estar en estudiantes o funcionarios. */
+export const esEspecial = e => e.especial ? e.especial === 'SI' : e.seccion === 'NOTA';
 /** Barra de la semana en que se muestra cada sección: las notas van con estudiantes y las externas con funcionarios. */
-export const barraDe = sec => sec === 'NOTA' || sec === 'ESTUDIANTES' ? 'ESTUDIANTES' : 'FUNCIONARIOS';
+export const barraDe = sec => sec === 'ESTUDIANTES' ? 'ESTUDIANTES' : 'FUNCIONARIOS';
 export const RE_NOTA = /\b(plazo|cambio de horario|horario de salida|horarios de salida|jornada reducida|salida anticipada|suspension de clases|sin clases|feriado|interferiado|ultimo dia de clases|termino de clases|receso)\b/;
 const RE_EXT = /\b(red (de )?(directores|utp|pie|ingles|colegios|cra)|red utp|red directores|slep|seremi|mineduc|deprov|comision local|seminario|jornada (pme|usm)|microcentro)\b/;
 const RE_FUNC = /\b(consejo|coordinador|acompanamiento|autocuidado|capacitacion|calendario (de )?ev|cierre (de )?(notas|actas)|plazo|revision (de )?libro|informes? de|calificacion|planificacion|equipo de gestion|eq\.? gestion|docentes?|profes\b|ingreso profesores|asistentes de la educacion|dia del profesor|evaluacion docente|hito entrega)/;
 /** Sección de un evento: la guardada o, si no tiene, una deducida de su origen y su título. */
 export function seccionDe(e) {
   if (e.seccion && SECCIONES[e.seccion]) return e.seccion;
+  if (e.seccion === 'NOTA') return seccionDe({ ...e, seccion: '', origen: 'Calendario anual' }); // antigua sección "Nota especial": se ubica por su título
   const origen = e.origen || e.tipo || '';
   if (origen === 'Reunión externa') return 'EXTERNAS';
-  const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS'; if (RE_NOTA.test(t)) return 'NOTA';
+  const t = norm(e.titulo); if (RE_EXT.test(t)) return 'EXTERNAS';
   if (/^calendario (anual \+ )?semanal/i.test(origen)) return 'ESTUDIANTES'; // en la planilla semanal venían bajo "Actividades estudiantes"
   if (/reunion/.test(t) && !/apoderad/.test(t)) return 'FUNCIONARIOS';
   return RE_FUNC.test(t) && !/estudiantes?\b/.test(t.replace(/profes y estudiantes/, '')) ? 'FUNCIONARIOS' : 'ESTUDIANTES';

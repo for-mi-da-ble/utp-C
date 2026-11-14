@@ -57,6 +57,20 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   const tal = await p.locator('.ev.k-tal .gl').allTextContents(); assert(tal.length > 10 && tal.every(t => !/\bTaller(es)?\b/i.test(t.replace(/^\S+\s/, '').slice(0, 9))), 'talleres sin "Taller": ' + tal.slice(0, 4));
   const tdb = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:matriz')).filter(m => m.categoria === 'TALLER_ACLE').map(m => m.titulo)); assert(tdb.every(t => !/^taller(es)?\s/i.test(t)), 'en la base: ' + tdb.slice(0, 3)); console.log('✓ talleres sin la palabra "Taller" (base y vista):', tdb.slice(0, 3).join(' · '));
   assert.equal(await p.locator('.card.foco, [data-k=foco]').count(), 0, 'sin franja de foco'); if (await p.locator('.ev.k-cum').count()) assert(/FELIZ CUMPLEAÑOS/i.test(await p.locator('.ev.k-cum .gt').first().textContent()), 'feliz cumpleaños'); console.log('✓ sin franja de foco; burbuja "¡Feliz cumpleaños!"');
+  // actividades sin horario al comienzo de su sección
+  for (const f of ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13']) for (const b of ['ESTUDIANTES', 'FUNCIONARIOS']) {
+    const h = await p.locator(`[data-drop="sec:${f}:${b}"] > .ev:not(.grp)`).evaluateAll(es => es.map(e => !!e.querySelector(':scope > .evh')));
+    assert.deepEqual(h, [...h].sort((a, c) => a - c), `sin horario primero ${f} ${b}: ${h}`); }
+  console.log('✓ en cada sección, las actividades sin horario van primero');
+  // nota especial: marca (casilla), puede estar en funcionarios
+  await p.goto(U + '/#semana'); await p.click('[data-a=fecha][data-n="7"]'); await p.waitForFunction(() => /Semana 36/.test(document.querySelector('.phead h1').textContent));
+  const fNota = await p.locator('[data-drop^="sec:"][data-drop$=":FUNCIONARIOS"] .ev.k-nota').count(), eNota = await p.locator('[data-drop^="sec:"][data-drop$=":ESTUDIANTES"] .ev.k-nota').count();
+  assert(fNota >= 1, 'nota especial en funcionarios'); console.log(`✓ semana 36: notas especiales en estudiantes (${eNota}) y en funcionarios (${fNota}), siempre primero`);
+  await p.locator('[data-drop="sec:2026-11-17:ESTUDIANTES"] [data-a=nuevo-ev]').click(); await p.fill('#f_titulo', 'Cambio de horario 2° ciclo'); await p.check('[name=especial]'); await p.click('.seg label:has([value=FUNCIONARIOS])'); await p.click('[data-a=guardar]'); await p.waitForTimeout(150);
+  const ne = await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:eventos')).find(e => e.titulo === 'Cambio de horario 2° ciclo')); assert.equal(ne.especial, 'SI'); assert.equal(ne.seccion, 'FUNCIONARIOS');
+  const prim = p.locator('[data-drop="sec:2026-11-17:FUNCIONARIOS"] > .ev').first(); assert(await prim.evaluate(e => e.classList.contains('k-nota')) && /Cambio de horario 2° ciclo/.test(await prim.textContent()), 'nota primera en funcionarios');
+  console.log('✓ casilla "Nota especial" en el formulario: la actividad va primera y en rojo en funcionarios');
+  await p.goto(U + '/#semana'); await p.click('[data-a=fecha-hoy]'); await p.waitForFunction(() => /Semana 35/.test(document.querySelector('.phead h1').textContent));
   await p.screenshot({ path: path.join(out, 'semana-secciones.png'), fullPage: true });
   await p.click('[data-a=boletin]'); const bt = await p.inputValue('.mono'); for (const t of ['ACTIVIDADES ESTUDIANTES', 'ACTIVIDADES FUNCIONARIOS', 'Talleres extraescolares:', 'Reforzamiento:', '-- E. Media --']) assert(bt.includes(t), t); await p.keyboard.press('Escape'); console.log('✓ boletín ordenado por secciones');
   // PDF: todas las semanas en una hoja

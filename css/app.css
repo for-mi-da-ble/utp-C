@@ -263,3 +263,8 @@ h1 { color: var(--navy); }
 
 /* trabajo colaborativo PIE: rosado */
 .k-pie { --bg: #fde3ef; --bd: #e0559a; --tx: #7a1747; }
+
+/* casilla "Nota especial" y su botón en modo edición */
+.chk { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #f3c4c4; background: #fff5f5; border-radius: 14px; cursor: pointer; font-size: 14px; color: #8c1d1d; }
+.chk input { width: 20px; height: 20px; min-height: 0; accent-color: #e05a5a; flex: none; }
+.evt .esp { color: #8c1d1d; } .evt .esp.on { background: #e05a5a; color: #fff; border-color: #e05a5a; }
