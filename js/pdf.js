@@ -32,13 +32,13 @@ export async function pdfSemana(l) {
   const deEv = e => [{ b: e.hora && !horaEnT(e) ? txt(e.hora) : '', x: txt(e.titulo) }, ...det(e.detalle)];
   const deMat = (m, quita) => ({ b: m.ini, x: txt(quita ? m.titulo.replace(quita, '') : m.titulo) + (m.sala_id ? ` (${txt(L.nombreEspacio(m.sala_id))})` : '') });
   const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['REF', 'Talleres y reforzamientos'], ['TAL', '']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
-    const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k);
+    const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), notas = b => grupo('nota', 'Nota especial', evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === b).flatMap(deEv));
     if (barra === 'REF') return grupo('ref', 'Reforzamiento', L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, /^reforzamiento\s+/i)));
     if (barra === 'TAL') return grupo('tal', 'Talleres extraescolares', L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, /^taller(?:es)?\s+(de\s+)?/i)));
     if (barra === 'ESTUDIANTES') {
-      return [...grupo('nota', 'Nota especial', de('NOTA').flatMap(deEv)), ...grupo('cum', 'FELIZ CUMPLEAÑOS', cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ b: '', x: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : '') }))),
+      return [...notas('ESTUDIANTES'), ...grupo('cum', 'FELIZ CUMPLEAÑOS', cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ b: '', x: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : '') }))),
         ...de('ESTUDIANTES').map(e => burbuja('est', e))]; }
-    return [...de('FUNCIONARIOS').map(e => burbuja('func', e)), ...(reu => [...grupo('func', 'Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN').map(m => deMat(m))), ...grupo('func', 'Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO').map(m => deMat(m, /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i))), ...grupo('pie', 'Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE').map(m => deMat(m, /^trabajo colaborativo pie\s*[-–:]?\s*/i)))])(L.rutinaDe(f, { REUNION_FIJA: 1 })), ...grupo('ext', 'Reuniones externas', de('EXTERNAS').flatMap(deEv))];
+    return [...notas('FUNCIONARIOS'), ...de('FUNCIONARIOS').map(e => burbuja('func', e)), ...(reu => [...grupo('func', 'Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN').map(m => deMat(m))), ...grupo('func', 'Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO').map(m => deMat(m, /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i))), ...grupo('pie', 'Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE').map(m => deMat(m, /^trabajo colaborativo pie\s*[-–:]?\s*/i)))])(L.rutinaDe(f, { REUNION_FIJA: 1 })), ...grupo('ext', 'Reuniones externas', de('EXTERNAS').flatMap(deEv))];
   }) })).filter((f, n) => n < 2 || f.cells.some(c => c.length)); // reforzamiento y talleres: sub-filas alineadas, solo si hay
   if (filas.length > 2 && !filas[2].nombre) filas[2].nombre = 'Talleres y reforzamientos';
 

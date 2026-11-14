@@ -74,18 +74,18 @@ function vHoy() {
       </div>
     </div>`;
 }
-const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${SEC_OPC.map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
+const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${SEC_OPC.map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="esp ${L.esEspecial(e) ? 'on' : ''}" data-a="ev-esp" data-id="${e.id}" title="Nota especial" aria-pressed="${L.esEspecial(e)}">! Nota</button><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
 const RUT_K = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
 const rutChip = m => `<div class="rut ${RUT_K[m.categoria]}" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'} title="${esc(`${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' · ' + L.nombreEspacio(m.sala_id) : ''}`)}"><b>${m.ini}</b> ${esc(m.titulo)}</div>`;
 // Detalle por hora: cada línea "08:30 Ingreso a sala" se muestra con la hora destacada.
 // Clase de color de cada burbuja según su sección (vista semanal, Hoy y PDF).
-const K_SEC = { NOTA: 'nota', ESTUDIANTES: 'est', FUNCIONARIOS: 'func', EXTERNAS: 'ext' };
+const K_SEC = { ESTUDIANTES: 'est', FUNCIONARIOS: 'func', EXTERNAS: 'ext' };
 // Detalle con subsecciones: "== E. Media" se dibuja como separador punteado; cada línea muestra hora, curso, actividad y (lugar).
 const detalleHTML = d => { const it = L.parseDetalle(d); return it.length ? `<div class="det">${it.map(i => i.sub !== undefined ? `<div class="dsub">${esc(i.sub)}</div>` : `<div class="dit">${i.hora ? `<b>${esc(i.hora.replace('-', '–'))}</b> ` : ''}${esc(L.textoItem(i))}</div>`).join('')}</div>` : ''; };
 const horaEnTitulo = e => !!e.hora && String(e.titulo).replace('.', ':').includes(String(e.hora).slice(0, 5)); // "11:40 Carta de amor": no repetir la hora
 // En la semana la primera línea muestra solo la hora propia del evento (nunca una deducida del detalle: cada curso tiene la suya).
 const evChip = (e, edit, dup, mes) => mes ? `<div class="ev ${L.AREAS[e.area] || 'blue'}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}" ${e.detalle ? `title="${esc(L.parseDetalle(e.detalle).map(i => i.sub !== undefined ? '— ' + i.sub : [i.hora, L.textoItem(i)].filter(Boolean).join(' ')).join('\n').slice(0, 400))}"` : ''}>${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b></div>`
-  : `<div class="ev k-${K_SEC[L.seccionDe(e)]} ${dup === true ? 'dup' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b>${L.enMensual(e) ? '<i class="tag mes" title="También aparece en el calendario mensual">mensual</i>' : ''}${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))}</small>` : ''}${detalleHTML(e.detalle)}${edit === true ? evTools(e) : ''}</div>`;
+  : `<div class="ev k-${L.esEspecial(e) ? 'nota' : K_SEC[L.seccionDe(e)]} ${dup === true ? 'dup' : ''}" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<span class="evh">${esc(String(e.hora).replace('-', '–'))}</span>` : ''}<b>${esc(e.titulo)}</b>${L.enMensual(e) ? '<i class="tag mes" title="También aparece en el calendario mensual">mensual</i>' : ''}${dup === true ? '<i class="tag amber">¿duplicado?</i>' : ''}${e.cursos || e.espacio_id ? `<small>${esc([e.cursos, L.nombreEspacio(e.espacio_id)].filter(Boolean).join(' · '))}</small>` : ''}${detalleHTML(e.detalle)}${edit === true ? evTools(e) : ''}</div>`;
 // Burbuja que agrupa varias líneas de un mismo tipo en un día (notas, cumpleaños, reforzamiento, talleres, reuniones, externas).
 const grupo = (k, titulo, lineas) => lineas.length ? `<div class="ev grp k-${k}"><b class="gt">${titulo}</b>${lineas.join('')}</div>` : '';
 const linEv = e => `<div class="gl" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<b>${esc(String(e.hora).replace('-', '–'))}</b> ` : ''}${esc(e.titulo)}${detalleHTML(e.detalle)}</div>`;
@@ -122,9 +122,9 @@ function boletin(l) {
   for (const [barra, nombre] of [['ESTUDIANTES', 'ACTIVIDADES ESTUDIANTES'], ['FUNCIONARIOS', 'ACTIVIDADES FUNCIONARIOS'], ['TALLERES', 'TALLERES Y REFORZAMIENTOS']]) {
     ln.push(nombre);
     dias.forEach((f, i) => {
-      const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), b = [];
+      const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), b = [];
+      if (barra !== 'TALLERES') evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === barra).forEach(e => b.push(...ev(e, '[!]'))); // notas especiales primero
       if (barra === 'ESTUDIANTES') {
-        de('NOTA').forEach(e => b.push(...ev(e, '[!]')));
         const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => c.nombre).join(', '));
         de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•')));
       } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
@@ -150,11 +150,14 @@ function mEnvio(titulo, o) {
 
 // ============ SEMANA ============
 function celdaSemana(f, i, barra, E, dups, cum) {
-  const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), chips = l => l.map(e => evChip(e, E, dups.has(e.id))).join('');
+  const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), chips = l => l.map(e => evChip(e, E, dups.has(e.id))).join('');
   let h = '';
+  if (barra === 'ESTUDIANTES' || barra === 'FUNCIONARIOS') { // 1. notas especiales de la sección (rojo pálido), siempre primero
+    const notas = evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === barra);
+    h += E ? chips(notas) : grupo('nota', 'Nota especial', notas.map(linEv));
+  }
   if (barra === 'ESTUDIANTES') {
-    const notas = de('NOTA'), cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
-    h += E ? chips(notas) : grupo('nota', 'Nota especial', notas.map(linEv));                                   // 1. notas especiales (rojo pálido)
+    const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
     h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
     h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
   } else if (barra === 'REF' || barra === 'TAL') { // al final del día, en sub-filas propias: así quedan alineados entre días
@@ -354,7 +357,7 @@ const pie = (existe, f, extra) => `${existe ? `<button class="btn danger" data-a
 
 // ============ modales de dominio ============
 const EV_DET = ['area', 'cursos', 'espacio_id', 'responsable'];
-const SEC_OPC = [['ESTUDIANTES', 'Estudiantes'], ['NOTA', 'Nota especial'], ['FUNCIONARIOS', 'Funcionarios'], ['EXTERNAS', 'Externa']];
+const SEC_OPC = [['ESTUDIANTES', 'Estudiantes'], ['FUNCIONARIOS', 'Funcionarios'], ['EXTERNAS', 'Externa']];
 // Editor del detalle: filas de hora · curso · actividad · lugar, y subsecciones (p. ej. por ciclo) que se separan con línea punteada.
 const filaDet = i => i.sub !== undefined
   ? `<div class="drow dsubrow"><input data-f="sub" value="${esc(i.sub)}" placeholder="Subsección (ej.: E. Media, 1° Ciclo)" aria-label="Subsección"><button type="button" class="ibtn sm" data-a="det-del" aria-label="Quitar">${ic('x')}</button></div>`
@@ -365,12 +368,13 @@ const editorDet = d => `<div class="detedit"><div class="dhead"><b>Detalle por c
   <input type="hidden" name="detalle" value="${esc(d || '')}"></div>`;
 function syncDet(form) { const h = form && form.querySelector('[name=detalle]'); if (!h) return; h.value = L.serializarDetalle([...form.querySelectorAll('.drow')].map(r => { const v = k => (r.querySelector(`[data-f=${k}]`) || {}).value || ''; return r.classList.contains('dsubrow') ? { sub: v('sub') } : { hora: v('hora').trim(), curso: v('curso'), act: v('act'), lugar: v('lugar') }; }).filter(i => i.sub !== undefined ? i.sub.trim() : (i.hora || i.curso || i.act || i.lugar))); }
 function mEvento(id, pre) {
-  const e0 = get('eventos', id) || { fecha: ui.fecha, jornada: 'AMBAS', area: 'UTP', seccion: 'ESTUDIANTES', mensual: 'NO', ...pre }, e = { ...e0, seccion: L.seccionDe(e0) };
+  const e0 = get('eventos', id) || { fecha: ui.fecha, jornada: 'AMBAS', area: 'UTP', seccion: 'ESTUDIANTES', mensual: 'NO', ...pre }, e = { ...e0, seccion: L.seccionDe(e0), especial: L.esEspecial(e0) ? 'SI' : 'NO' };
   if (!ed() && !id) return;
   const n = EV_DET.filter(k => e[k] && !(k === 'area' && e.area === 'UTP')).length, abrir = !!pre && !!pre.espacio_id;
   modal(id ? 'Editar evento' : 'Nuevo evento', `<form class="form" data-form="ev" data-id="${esc(id || '')}">${campos([
     { k: 'titulo', label: 'Actividad', req: 1, ph: 'Ej.: Ensayo SIMCE 4° básicos' }, { k: 'fecha', label: 'Fecha', type: 'date', req: 1, w: 'half' }, { k: 'hora', label: 'Horario', ph: '09:00-10:30 (vacío = sin hora)', w: 'half', max: 20 },
     { k: 'seccion', label: 'Sección en la semana', type: 'seg', options: SEC_OPC },
+    { k: 'especial', label: '', type: 'check', texto: 'Nota especial (plazo, feriado, cambio de horario): va primero y en rojo en su sección' },
     { k: 'mensual', label: '¿Aparece en el calendario mensual?', type: 'seg', options: [['SI', 'Sí, es un hito del mes'], ['NO', 'No, solo en la semana']] }], e)}
     ${editorDet(e.detalle)}
     <button type="button" class="more" data-a="mas-det" aria-expanded="${abrir}">${abrir ? 'Ocultar detalles' : 'Todos los detalles'}${n ? ` <i>${n}</i>` : ''}</button>
@@ -455,6 +459,7 @@ let ultimo = null; // último registro eliminado en modo edición (para Deshacer
 function borrarRapido(t, id) { const r = get(t, id); if (!r) return; ultimo = { t, r }; del(t, id); toast(`Eliminado: ${String(r.titulo || '').slice(0, 40)}`, '', ['Deshacer', 'deshacer']); }
 const A = {
   'modo-edit': () => { ui.edit = !ui.edit; },
+  'ev-esp': el => { const e = get('eventos', el.dataset.id); if (e && ed()) put('eventos', { ...e, especial: L.esEspecial(e) ? 'NO' : 'SI' }); },
   'det-add': el => { const c = el.closest('.detedit').querySelector('.drows'); c.insertAdjacentHTML('beforeend', filaDet(el.dataset.t === 'sub' ? { sub: '' } : {})); const n = c.lastElementChild.querySelector('input'); if (n) n.focus(); },
   'det-del': el => el.closest('.drow').remove(),
   'rut-mes': () => { ui.rutMes = !ui.rutMes; },
@@ -526,7 +531,7 @@ if (S.puedeEditar()) {
   if (tal.length && S.esAdmin()) S.bulk('matriz', tal); // los talleres se nombran sin la palabra "Taller"
   let hecho = false; try { hecho = localStorage.getItem('sigutp:mig-nota') === '1'; } catch { }
   if (!hecho) { // v6: plazos, feriados y cambios de horario pasan a "Nota especial" (una vez; después manda lo que edite el usuario)
-    const notas = all('eventos').filter(e => (e.seccion === 'ESTUDIANTES' || e.seccion === 'FUNCIONARIOS' || !e.seccion) && L.RE_NOTA.test(L.norm(e.titulo))).map(e => ({ ...e, seccion: 'NOTA' }));
+    const notas = all('eventos').filter(e => !e.especial && L.RE_NOTA.test(L.norm(e.titulo))).map(e => ({ ...e, especial: 'SI' }));
     if (notas.length) S.bulk('eventos', notas); if (all('eventos').length) try { localStorage.setItem('sigutp:mig-nota', '1'); } catch { }
   }
 }
