@@ -130,7 +130,7 @@ function boletin(l) {
       } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
         b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
       } else {
-        de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }); b.push(...mat('Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN')), ...mat('Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO')), ...mat('Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE')));
+        de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }); b.push(...mat('Consejo de profesores', reu.filter(m => L.tipoReunion(m) === 'CONSEJO')), ...mat('Reuniones lineales', reu.filter(m => L.tipoReunion(m) === 'LINEAL')), ...mat('Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN')), ...mat('Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO')), ...mat('Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE')));
         const x = de('EXTERNAS'); if (x.length) { b.push('   • Reuniones externas:'); x.forEach(e => b.push(...ev(e, '  -'))); }
       }
       if (b.length) ln.push(`  ${L.DIAS[i + 1].toUpperCase()} ${L.fechaCorta(f)}`, ...b);
@@ -164,9 +164,12 @@ function celdaSemana(f, i, barra, E, dups, cum) {
     const ref = barra === 'REF', rut = L.rutinaDe(f, ref ? { REFORZAMIENTO: 1 } : { TALLER_ACLE: 1 });
     h += ref ? grupo('ref', 'Reforzamiento', rut.map(m => linMat(m, /^reforzamiento\s+/i))) : grupo('tal', 'Talleres extraescolares', rut.map(m => linMat(m, /^taller(?:es)?\s+(de\s+)?/i)));
   } else {
-    h += chips(de('FUNCIONARIOS'));                                                                                // 1. trabajo con funcionarios (amarillo pálido)
-    const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }), tipo = t => reu.filter(m => L.tipoReunion(m) === t);
-    h += grupo('func', 'Reuniones', tipo('GEN').map(m => linMat(m)));                                               // 2. reuniones fijas (consejos, lineales…)
+    const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }), tipo = t => reu.filter(m => L.tipoReunion(m) === t), evT = t => de('FUNCIONARIOS').filter(e => L.tipoReunion(e) === t);
+    h += chips(de('FUNCIONARIOS').filter(e => !['CONSEJO', 'LINEAL'].includes(L.tipoReunion(e))));                 // 1. trabajo con funcionarios (amarillo pálido)
+    // consejo de profesores y reuniones lineales: una burbuja cada uno (las del calendario y las fijas), como el colaborativo PIE
+    h += E ? chips(evT('CONSEJO')) + grupo('func', 'Consejo de profesores', tipo('CONSEJO').map(m => linMat(m))) : grupo('func', 'Consejo de profesores', [...evT('CONSEJO').map(linEv), ...tipo('CONSEJO').map(m => linMat(m))]);
+    h += E ? chips(evT('LINEAL')) + grupo('func', 'Reuniones lineales', tipo('LINEAL').map(m => linMat(m))) : grupo('func', 'Reuniones lineales', [...evT('LINEAL').map(linEv), ...tipo('LINEAL').map(m => linMat(m))]);
+    h += grupo('func', 'Reuniones', tipo('GEN').map(m => linMat(m)));                                               // 2. otras reuniones fijas
     h += grupo('func', 'Reuniones de departamento', tipo('DEPTO').map(m => linMat(m, /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i))); // 3. departamentos del día
     h += grupo('pie', 'Trabajo colaborativo PIE', tipo('PIE').map(m => linMat(m, /^trabajo colaborativo pie\s*[-–:]?\s*/i)));                // 4. colaborativo PIE (rosado)
     const ext = de('EXTERNAS'); h += E ? chips(ext) : grupo('ext', 'Reuniones externas', ext.map(linEv));         // 3. externas (gris)

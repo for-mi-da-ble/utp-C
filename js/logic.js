@@ -283,7 +283,10 @@ export function serializarDetalle(items) {
 export function textoItem(i) { const a = [i.curso, i.act].filter(Boolean).join(' · '); return i.lugar ? (a ? `${a} (${i.lugar})` : `(${i.lugar})`) : a; }
 
 // ---------- reuniones fijas agrupadas y talleres ----------
-/** Tipo de reunión fija: trabajo colaborativo PIE, reunión de departamento o general (consejos, lineales, turnos…). */
-export function tipoReunion(m) { const t = norm(m.titulo); return /colaborativo/.test(t) ? 'PIE' : /\b(departamento|depto)\b/.test(t) ? 'DEPTO' : 'GEN'; }
+/** Tipo de reunión: consejo de profesores, reunión lineal, trabajo colaborativo PIE, departamento u otra (GEN). */
+export function tipoReunion(m) {
+  const t = norm(m.titulo);
+  return /colaborativo/.test(t) ? 'PIE' : /\b(departamento|depto)\b/.test(t) ? 'DEPTO' : /\bconsejo\b/.test(t) && !/escolar/.test(t) ? 'CONSEJO' : /\blineal(es)?\b/.test(t) ? 'LINEAL' : 'GEN';
+}
 /** Nombre de taller sin la palabra "Taller(es) (de)" al comienzo: "Taller Ajedrez - 2° ciclo" → "Ajedrez - 2° ciclo". */
 export const sinTaller = t => String(t || '').replace(/^\s*taller(?:es)?\s+(de\s+)?/i, '').trim();
