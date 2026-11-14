@@ -1,6 +1,6 @@
 // Importación / exportación .XLSX (RF-5.1). SheetJS se carga solo cuando se necesita.
 import { all, bulk, uid, del } from './store.js';
-import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, enMensual, mismoTitulo, fusionar, migrarEvento, nombreEspacio, EDIFICIOS } from './logic.js';
+import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, enMensual, mismoTitulo, fusionar, migrarEvento, sinTaller, nombreEspacio, EDIFICIOS } from './logic.js';
 
 let cargando;
 export function sheetjs() {
@@ -105,7 +105,7 @@ function importarBD(X, wb) {
   const matriz = filas(X, wb, '05_Actividades_Recurrentes').filter(r => v(r.ID_Actividad_Semanal)).map(r => {
     ensure(v(r.ID_Sala), r.Sala_Dependencia);
     return { id: v(r.ID_Actividad_Semanal), categoria: /acle/i.test(r.Categoria_Actividad) ? 'TALLER_ACLE' : /reforz/i.test(r.Nombre_Actividad) && !/acle/i.test(r.Categoria_Actividad) ? 'REFORZAMIENTO' : 'REUNION_FIJA',
-      dia: +r.Orden_Dia, ini: hhmm(r.Hora_Inicio), fin: hhmm(r.Hora_Fin), titulo: v(r.Nombre_Actividad), grupo: v(r.Ciclo_o_Departamento), sala_id: v(r.ID_Sala), participantes: v(r.Participantes_Convocados).slice(0, 500) };
+      dia: +r.Orden_Dia, ini: hhmm(r.Hora_Inicio), fin: hhmm(r.Hora_Fin), titulo: /acle/i.test(r.Categoria_Actividad) ? sinTaller(v(r.Nombre_Actividad)) : v(r.Nombre_Actividad), grupo: v(r.Ciclo_o_Departamento), sala_id: v(r.ID_Sala), participantes: v(r.Participantes_Convocados).slice(0, 500) };
   });
   bulk('funcionarios', func, true); bulk('cursos', cursos, true); bulk('espacios', [...esp.values()], true); bulk('bloques', bloques, true); bulk('matriz', matriz, true);
   if (!all('semanas').length) bulk('semanas', generarSemanas((window.SIG_CONFIG || {}).ANIO || new Date().getFullYear()));
@@ -204,7 +204,7 @@ function importarSemanal(X, wb) {
         const n = norm(t.x), sec = !t.h && RE_SEC.find(([re]) => re.test(n));
         if (sec) { modo = sec[1]; cur = null; continue; }
         if (modo === 'omitir') continue;
-        if (modo === 'REFORZAMIENTO' || modo === 'TALLER_ACLE') { if (+name === ultima && t.h && /-/.test(t.h)) fijos.push({ categoria: modo, dia: d + 1, ini: t.h.slice(0, 5), fin: t.h.slice(6), titulo: (modo === 'REFORZAMIENTO' ? 'Reforzamiento ' : 'Taller ') + t.x.replace(/^taller(es)?\s+(de\s+)?/i, '') }); continue; }
+        if (modo === 'REFORZAMIENTO' || modo === 'TALLER_ACLE') { if (+name === ultima && t.h && /-/.test(t.h)) fijos.push({ categoria: modo, dia: d + 1, ini: t.h.slice(0, 5), fin: t.h.slice(6), titulo: modo === 'REFORZAMIENTO' ? 'Reforzamiento ' + t.x : sinTaller(t.x) }); continue; }
         const nota = !t.h && (RE_SUB.test(n) || /^[-•*]/.test(t.x) || (cur && /:$/.test(t.x)));
         if (cur && (nota || (t.h && cur.grupo))) { cur.nota.push((t.h ? t.h + ' ' : '') + t.x.replace(/^[-•*]\s*/, '')); continue; }
         if (!util(t.x)) continue;
@@ -234,7 +234,7 @@ function importarSemanal(X, wb) {
 // ================= BASE DE DATOS UNIFICADA (un solo libro .xlsx) =================
 // Una hoja por tabla, con las mismas columnas que la planilla de Google. Es el único archivo que hay que conservar.
 const ESQUEMA = {
-  semanas: ['01_Semanas_Clases', ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta', 'foco', 'consejo_tema', 'lineal_cursos']],
+  semanas: ['01_Semanas_Clases', ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta']],
   eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen']],
   ausencias: ['03_Ausencias_Reemplazos', ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura']],
   funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email']],
@@ -274,6 +274,7 @@ function importarUnificada(X, wb) {
       const id = String(r.id == null ? '' : r.id).trim(); if (!id || vistos.has(id)) continue; vistos.add(id);
       const o = { id }; for (const k of cols) { if (k === 'id') continue; let x = String(r[k] == null ? '' : r[k]).trim(); if (x === '') continue;
         if (k === 'ini' || k === 'fin') x = hhmm(x) || x; else if (k === 'dia' || k === 'orden' || k === 'mes') x = +x || 0; o[k] = x; }
+      if (t === 'matriz' && o.categoria === 'TALLER_ACLE' && o.titulo) o.titulo = sinTaller(o.titulo); // los talleres se nombran sin "Taller"
       if (t === 'eventos') { if (!o.detalle && r.nota) o.detalle = String(r.nota).trim(); if (!o.origen && r.tipo) o.origen = String(r.tipo).trim(); Object.assign(o, migrarEvento(o) || {}); if (o.mensual) o.mensual = /^s/i.test(o.mensual) ? 'SI' : 'NO'; } // bases anteriores (nota, tipo)
       rows.push(o);
     }

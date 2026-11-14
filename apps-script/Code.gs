@@ -5,7 +5,7 @@
  * Instalación: ver README. Ejecuta `instalar()` una vez desde el editor.
  */
 var TABLAS = {
-  semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta', 'foco', 'consejo_tema', 'lineal_cursos'],
+  semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta'],
   eventos: ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen'],
   ausencias: ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura'],
   funcionarios: ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email'],

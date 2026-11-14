@@ -12,7 +12,7 @@ function jspdf() {
 const txt = s => String(s == null ? '' : s).replace(/[–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF]/g, '').replace(/[ \t]+/g, ' ').trim();
 // Colores de burbuja (fondo, borde, texto): iguales a la vista Semana.
 const K = { nota: [[253, 230, 230], [224, 90, 90], [140, 29, 29]], cum: [[255, 226, 194], [240, 138, 36], [122, 59, 0]], est: [[225, 234, 250], [47, 98, 196], [24, 52, 110]],
-  func: [[253, 246, 214], [214, 180, 58], [95, 75, 0]], ext: [[236, 238, 241], [138, 145, 158], [59, 65, 76]], ref: [[255, 240, 163], [226, 182, 0], [92, 71, 0]], tal: [[220, 242, 251], [42, 163, 214], [13, 79, 107]] };
+  func: [[253, 246, 214], [214, 180, 58], [95, 75, 0]], ext: [[236, 238, 241], [138, 145, 158], [59, 65, 76]], pie: [[253, 227, 239], [224, 85, 154], [122, 23, 71]], ref: [[255, 240, 163], [226, 182, 0], [92, 71, 0]], tal: [[220, 242, 251], [42, 163, 214], [13, 79, 107]] };
 const NAVY = [32, 64, 112], GOLD = [240, 192, 48];
 const IL = 1.34; // interlineado del PDF (algo más amplio para leer impreso)
 
@@ -34,11 +34,11 @@ export async function pdfSemana(l) {
   const filas = [['ESTUDIANTES', 'Actividades estudiantes'], ['FUNCIONARIOS', 'Actividades funcionarios'], ['REF', 'Talleres y reforzamientos'], ['TAL', '']].map(([barra, nombre]) => ({ nombre, cells: dias.map((f, i) => {
     const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k);
     if (barra === 'REF') return grupo('ref', 'Reforzamiento', L.rutinaDe(f, { REFORZAMIENTO: 1 }).map(m => deMat(m, /^reforzamiento\s+/i)));
-    if (barra === 'TAL') return grupo('tal', 'Talleres extraescolares', L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, /^talleres?\s+(de\s+)?/i)));
+    if (barra === 'TAL') return grupo('tal', 'Talleres extraescolares', L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => deMat(m, /^taller(?:es)?\s+(de\s+)?/i)));
     if (barra === 'ESTUDIANTES') {
-      return [...grupo('nota', 'Nota especial', de('NOTA').flatMap(deEv)), ...grupo('cum', 'Cumpleaños', cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ b: '', x: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : '') }))),
+      return [...grupo('nota', 'Nota especial', de('NOTA').flatMap(deEv)), ...grupo('cum', 'FELIZ CUMPLEAÑOS', cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f).map(c => ({ b: '', x: txt(c.nombre) + (L.dow(c.fecha) > 5 ? ` (${L.DIAS[L.dow(c.fecha)].slice(0, 3).toLowerCase()} ${+c.dia})` : '') }))),
         ...de('ESTUDIANTES').map(e => burbuja('est', e))]; }
-    return [...de('FUNCIONARIOS').map(e => burbuja('func', e)), ...grupo('func', 'Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => deMat(m))), ...grupo('ext', 'Reuniones externas', de('EXTERNAS').flatMap(deEv))];
+    return [...de('FUNCIONARIOS').map(e => burbuja('func', e)), ...(reu => [...grupo('func', 'Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN').map(m => deMat(m))), ...grupo('func', 'Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO').map(m => deMat(m, /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i))), ...grupo('pie', 'Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE').map(m => deMat(m, /^trabajo colaborativo pie\s*[-–:]?\s*/i)))])(L.rutinaDe(f, { REUNION_FIJA: 1 })), ...grupo('ext', 'Reuniones externas', de('EXTERNAS').flatMap(deEv))];
   }) })).filter((f, n) => n < 2 || f.cells.some(c => c.length)); // reforzamiento y talleres: sub-filas alineadas, solo si hay
   if (filas.length > 2 && !filas[2].nombre) filas[2].nombre = 'Talleres y reforzamientos';
 
@@ -58,7 +58,7 @@ export async function pdfSemana(l) {
   };
   const altoCelda = c => c.reduce((s, bu) => s + bu.alto + GAP, 0) + (c.mas ? 10 : 0);
   const altoFila = f => Math.max(16, ...f.cells.map(altoCelda)) + 3, BARRA = 11;
-  const info = [['Foco', w && w.foco], ['Consejo (lunes)', w && w.consejo_tema], ['Reunión lineal (miércoles)', w && w.lineal_cursos]].filter(x => x[1]);
+  const info = []; // la franja de foco / consejo / reunión lineal ya no se usa
   const TOP = 48 + (info.length ? 14 : 0) + 18, DISP = BOT - TOP - filas.filter(f => f.nombre).length * (BARRA + 2);
   const NIV = []; for (const fs of [8.5, 8, 7.5, 7, 6.5, 6]) NIV.push({ fs, tm: 3, lm: 2 }); NIV.push({ fs: 6, tm: 2, lm: 1 }, { fs: 5.5, tm: 2, lm: 1 });
   const total = () => filas.reduce((s, f) => s + altoFila(f), 0);
@@ -109,7 +109,7 @@ export async function pdfSemana(l) {
   }
   // pie: leyenda de colores
   let lx = M; const ly = H - 9; doc.setFontSize(6.5);
-  for (const [k, t] of [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['ext', 'Reunión externa']]) {
+  for (const [k, t] of [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['pie', 'Colaborativo PIE'], ['ext', 'Reunión externa']]) {
     doc.setDrawColor(...K[k][1]).setLineWidth(0.9).rect(lx, ly - 5.5, 7, 6, 'S'); doc.setFont('helvetica', 'normal').setTextColor(92, 106, 128).text(t, lx + 9, ly); lx += 9 + doc.getTextWidth(t) + 10; }
   doc.setTextColor(138, 145, 158).text(txt(`Unidad Técnico-Pedagógica · ${new Date().toLocaleDateString('es-CL')}${ocultos ? ' · semana muy cargada: hay líneas que no caben' : ''}`), W - M, ly, { align: 'right' });
   const nombre = `Calendario_Semanal_${w && w.num ? 'S' + String(w.num).padStart(2, '0') : 'semana'}_${l}.pdf`;

@@ -34,8 +34,7 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   const docente = await p.evaluate((() => { const b = JSON.parse(localStorage.getItem('sigutp:t:bloques')), f = JSON.parse(localStorage.getItem('sigutp:t:funcionarios')), c = {}; for (const x of b) if (x.tipo === 'CLASE' && +x.dia === 4 && x.func_id) c[x.func_id] = (c[x.func_id] || 0) + 1; const id = Object.keys(c).sort((a, z) => c[z] - c[a])[0]; return f.find(x => x.id === id).nombre; }));
   for (const [n, d] of [[docente, 11], ['María Externa (asistente)', 14]]) { await p.locator('[data-a=edit-cum][data-id=""]').first().click(); await p.fill('#f_nombre', n); await p.fill('#f_dia', String(d)); await p.selectOption('#f_mes', '11'); await p.click('[data-a=guardar]'); await p.waitForTimeout(120); }
   assert(await p.locator('.ev.k-cum .cumn', { hasText: docente.split(' ')[0] }).count() >= 1); assert(await p.locator('.ev.k-cum .cumn', { hasText: 'María Externa' }).count() === 1); console.log('✓ cumpleaños en burbuja naranja:', (await p.locator('.ev.k-cum .cumn').allTextContents()).join(' | '));
-  await p.fill('[data-k=foco]', 'Cierre de promedios y SIMCE II° medio'); await p.keyboard.press('Tab'); await p.waitForTimeout(100);
-  await p.click('[data-a=boletin]'); assert((await p.inputValue('.mono')).includes('Cumpleaños:')); await p.keyboard.press('Escape');
+  await p.click('[data-a=boletin]'); assert((await p.inputValue('.mono')).includes('¡FELIZ CUMPLEAÑOS!')); await p.keyboard.press('Escape');
   await p.screenshot({ path: path.join(out, 'semana-final.png'), fullPage: true });
   // PDF
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('[data-a=pdf]')]); const f = path.join(out, dl.suggestedFilename()); await dl.saveAs(f); console.log('✓ PDF descargado:', dl.suggestedFilename());

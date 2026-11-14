@@ -35,7 +35,7 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   // Semana: mover a otro día y jornada
   await p.goto(U + '/#semana'); await arrastrar(p.locator('.ev', { hasText: 'Trabün' }), p.locator('[data-drop="sec:2026-11-13:FUNCIONARIOS"]'));
   const t = await ev('Trabün'); assert.equal(t.fecha, '2026-11-13'); assert.equal(t.seccion, 'FUNCIONARIOS'); console.log('✓ arrastrar entre días y secciones (semana)');
-  await p.fill('[data-k=foco]', 'Cierre de promedios'); await p.keyboard.press('Tab'); await p.waitForTimeout(100); assert.equal((await p.evaluate(() => JSON.parse(localStorage.getItem('sigutp:t:semanas')).find(w => w.inicio === '2026-11-09'))).foco, 'Cierre de promedios'); console.log('✓ foco semanal editable');
+  assert.equal(await p.locator('[data-k=foco], .card.foco').count(), 0); console.log('✓ sin la franja de foco / consejo / reunión lineal');
   // Horario: swap de bloques
   await p.goto(U + '/#horarios'); await p.click('[data-a=ciclo][data-v="Enseñanza Media"]'); await p.click('[data-a=curso][data-v="2° MEDIO B"]'); await p.waitForSelector('[data-a=curso][data-v="2° MEDIO B"].on'); await p.waitForTimeout(100);
   const txt = s => p.locator(`[data-drop="${s}"] .hb b`).first().textContent(); const a0 = await txt('hc:M1:1'), b0 = await txt('hc:M3:2');

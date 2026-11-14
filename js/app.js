@@ -62,7 +62,7 @@ function vHoy() {
     `<div class="grid3">
       <div class="card kpi"><div class="kh"><span class="avatar pink">${ic('user')}</span><span>Ausencias<br>docentes</span></div><div class="big">${r.aus.length}</div><div class="kf">${r.aus.length ? esc(r.aus.slice(0, 3).map(a => L.nombreCorto(a.nombre)).join(', ')) + (r.aus.length > 3 ? '…' : '') : 'Dotación completa'}</div></div>
       <div class="card kpi"><div class="kh"><span class="avatar ${sin ? 'amber' : 'green'}">${ic(sin ? 'alert' : 'check')}</span><span>Bloques<br>sin cubrir</span></div><div class="big">${sin}<sup class="${sin ? 'dn' : 'up'}">${r.cubiertos}/${r.afectados} cubiertos</sup></div><div class="bar"><i class="${sin ? 'pink' : 'green'}" style="width:${Math.round(p * 100)}%"></i></div></div>
-      <div class="card kpi"><div class="kh"><span class="avatar blue">${ic('cal')}</span><span>Semana<br>de clases</span><a class="ibtn" href="#semana" aria-label="Ver semana">${ic('arrow')}</a></div><div class="big">${w && w.num ? w.num : '—'}<sup>${w ? `Semestre ${esc(w.semestre)}` : ''}</sup></div><div class="kf">${w && w.foco ? 'Foco: ' + esc(w.foco) : 'Sin foco definido'}</div></div>
+      <div class="card kpi"><div class="kh"><span class="avatar blue">${ic('cal')}</span><span>Semana<br>de clases</span><a class="ibtn" href="#semana" aria-label="Ver semana">${ic('arrow')}</a></div><div class="big">${w && w.num ? w.num : '—'}<sup>${w ? `Semestre ${esc(w.semestre)}` : ''}</sup></div><div class="kf">${r.eventos.length} actividad${r.eventos.length === 1 ? '' : 'es'} hoy${L.cumplesEntre(f, f).length ? ' · 🎂 ' + L.cumplesEntre(f, f).length + ' cumpleaños' : ''}</div></div>
     </div>
     <div class="grid2w">
       <div class="card"><div class="ch"><h3>Ausencias y cobertura</h3>${r.afectados ? `<div class="dmini">${donut(p, sin ? 'var(--pink)' : 'var(--green)')}<b>${Math.round(p * 100)}%</b></div>` : ''}</div>
@@ -116,7 +116,6 @@ function parteDiario(f) {
 const lineasDet = (d, sangria) => L.parseDetalle(d).map(i => sangria + (i.sub !== undefined ? `-- ${i.sub} --` : [i.hora, L.textoItem(i)].filter(Boolean).join(' ')));
 function boletin(l) {
   const w = L.semanaDe(l), ln = [`BOLETÍN SEMANAL — ${L.etiquetaSemana(w)} (${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))})`, ''];
-  if (w) { if (w.foco) ln.push('Foco de la semana: ' + w.foco); if (w.consejo_tema) ln.push('Consejo de profesores (lunes): ' + w.consejo_tema); if (w.lineal_cursos) ln.push('Reunión lineal (miércoles): ' + w.lineal_cursos); ln.push(''); }
   const dias = [0, 1, 2, 3, 4].map(i => L.addDias(l, i)), cum = L.cumplesEntre(l, L.addDias(l, 6));
   const ev = (e, pre) => [`   ${pre} ${e.hora ? e.hora + ' ' : ''}${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`, ...lineasDet(e.detalle, '       ')];
   const mat = (t, ms) => ms.length ? [`   • ${t}:`, ...ms.map(m => `       ${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' (' + L.nombreEspacio(m.sala_id) + ')' : ''}`)] : [];
@@ -126,12 +125,12 @@ function boletin(l) {
       const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k), b = [];
       if (barra === 'ESTUDIANTES') {
         de('NOTA').forEach(e => b.push(...ev(e, '[!]')));
-        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   Cumpleaños: ' + cs.map(c => c.nombre).join(', '));
+        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => c.nombre).join(', '));
         de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•')));
       } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
         b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
       } else {
-        de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); b.push(...mat('Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 })));
+        de('FUNCIONARIOS').forEach(e => b.push(...ev(e, '•'))); const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }); b.push(...mat('Reuniones', reu.filter(m => L.tipoReunion(m) === 'GEN')), ...mat('Reuniones de departamento', reu.filter(m => L.tipoReunion(m) === 'DEPTO')), ...mat('Trabajo colaborativo PIE', reu.filter(m => L.tipoReunion(m) === 'PIE')));
         const x = de('EXTERNAS'); if (x.length) { b.push('   • Reuniones externas:'); x.forEach(e => b.push(...ev(e, '  -'))); }
       }
       if (b.length) ln.push(`  ${L.DIAS[i + 1].toUpperCase()} ${L.fechaCorta(f)}`, ...b);
@@ -156,14 +155,17 @@ function celdaSemana(f, i, barra, E, dups, cum) {
   if (barra === 'ESTUDIANTES') {
     const notas = de('NOTA'), cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
     h += E ? chips(notas) : grupo('nota', 'Nota especial', notas.map(linEv));                                   // 1. notas especiales (rojo pálido)
-    h += grupo('cum', '🎂 Cumpleaños', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
+    h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
     h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
   } else if (barra === 'REF' || barra === 'TAL') { // al final del día, en sub-filas propias: así quedan alineados entre días
     const ref = barra === 'REF', rut = L.rutinaDe(f, ref ? { REFORZAMIENTO: 1 } : { TALLER_ACLE: 1 });
-    h += ref ? grupo('ref', 'Reforzamiento', rut.map(m => linMat(m, /^reforzamiento\s+/i))) : grupo('tal', 'Talleres extraescolares', rut.map(m => linMat(m, /^talleres?\s+(de\s+)?/i)));
+    h += ref ? grupo('ref', 'Reforzamiento', rut.map(m => linMat(m, /^reforzamiento\s+/i))) : grupo('tal', 'Talleres extraescolares', rut.map(m => linMat(m, /^taller(?:es)?\s+(de\s+)?/i)));
   } else {
     h += chips(de('FUNCIONARIOS'));                                                                                // 1. trabajo con funcionarios (amarillo pálido)
-    h += grupo('func', 'Reuniones', L.rutinaDe(f, { REUNION_FIJA: 1 }).map(m => linMat(m)));                       // 2. reuniones fijas
+    const reu = L.rutinaDe(f, { REUNION_FIJA: 1 }), tipo = t => reu.filter(m => L.tipoReunion(m) === t);
+    h += grupo('func', 'Reuniones', tipo('GEN').map(m => linMat(m)));                                               // 2. reuniones fijas (consejos, lineales…)
+    h += grupo('func', 'Reuniones de departamento', tipo('DEPTO').map(m => linMat(m, /^reuni[oó]n\s+(de\s+)?(departamento|depto\.?)\s+/i))); // 3. departamentos del día
+    h += grupo('pie', 'Trabajo colaborativo PIE', tipo('PIE').map(m => linMat(m, /^trabajo colaborativo pie\s*[-–:]?\s*/i)));                // 4. colaborativo PIE (rosado)
     const ext = de('EXTERNAS'); h += E ? chips(ext) : grupo('ext', 'Reuniones externas', ext.map(linEv));         // 3. externas (gris)
   }
   const fija = barra === 'REF' || barra === 'TAL';
@@ -184,11 +186,10 @@ function vSemana() {
     g += (nombre || (barra === 'TAL' && !hayRef) ? `<div class="secbar">${nombre || 'Talleres y reforzamientos'}</div>` : '') + dias.map((f, i) => celdaSemana(f, i, barra, E, dups, cum)).join('');
   }
   g += '</div>';
-  const ley = [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['ext', 'Reunión externa']];
+  const ley = [['nota', 'Nota especial'], ['cum', 'Cumpleaños'], ['est', 'Actividad estudiantes'], ['ref', 'Reforzamiento'], ['tal', 'Taller extraescolar'], ['func', 'Trabajo funcionarios'], ['pie', 'Trabajo colaborativo PIE'], ['ext', 'Reunión externa']];
   return head(w ? L.etiquetaSemana(w) : 'Semana', `${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))} ${l.slice(0, 4)}${w ? ` · Semestre ${esc(w.semestre)}` : ' · fuera del año lectivo'}`, navFecha(7, 'Semana actual') + (ed() ? `<button class="btn ${E ? 'on' : ''}" data-a="modo-edit" aria-pressed="${E}">${E ? ic('check') + ' Terminar edición' : 'Modo edición'}</button><button class="btn" data-a="edit-cum" data-id="" data-f="${l}">🎂 Cumpleaños</button>` : '') + `<button class="btn" data-a="pdf">PDF carta</button><button class="btn dark" data-a="boletin">${ic('mail')} Boletín del viernes</button>`) +
     (E ? `<div class="editbar">${ic('alert')}<div><b>Modo edición general.</b> Cada actividad muestra sus controles: ◀ ▶ la mueve de día, el selector la cambia de sección, <b>Editar</b> abre su ficha y ✕ la elimina al instante (con opción de deshacer). Las notas y las reuniones externas se separan en burbujas para editarlas. ${nev} actividades esta semana${ndup ? ` · <b>${ndup} posible${ndup > 1 ? 's' : ''} duplicado${ndup > 1 ? 's' : ''}</b> marcado${ndup > 1 ? 's' : ''} en amarillo` : ''}.</div></div>` : '') +
-    `<div class="card foco">${inp('foco', 'Foco de la semana', 'Ej.: Cierre de evaluaciones del 2° semestre')}${inp('consejo_tema', 'Consejo de profesores (lunes)', 'Tema del consejo')}${inp('lineal_cursos', 'Reunión lineal (miércoles)', 'Cursos citados')}</div>
-     <div class="card nopad semana ${E ? 'editing' : ''}">${g}</div>
+    `<div class="card nopad semana ${E ? 'editing' : ''}">${g}</div>
      <div class="legend semleg">${ley.map(([k, n]) => `<span><i class="sw k-${k}"></i>${n}</span>`).join('')}</div>`;
 }
 function mDuplicados() {
@@ -315,8 +316,8 @@ const ESQ = {
     f: () => [{ k: 'titulo', label: 'Actividad', req: 1 }, { k: 'categoria', label: 'Categoría', type: 'select', options: Object.entries(L.MATRIZ_CAT) }, { k: 'dia', label: 'Día', type: 'select', options: [1, 2, 3, 4, 5].map(d => [d, L.DIAS[d]]), w: 'third' }, { k: 'ini', label: 'Inicio', type: 'time', w: 'third' }, { k: 'fin', label: 'Fin', type: 'time', w: 'third' }, { k: 'grupo', label: 'Ciclo / departamento', w: 'half' }, { k: 'sala_id', label: 'Espacio', type: 'select', options: optEsp(), w: 'half' }, { k: 'participantes', label: 'Participantes', type: 'textarea' }] },
   cumpleanos: { n: 'Cumpleaños', cols: [['nombre', 'Nombre'], ['dia', 'Día'], ['_mes', 'Mes']], pre: 'CU',
     f: () => [{ k: 'nombre', label: 'Nombre', req: 1, list: 'dl-func' }, { k: 'dia', label: 'Día', type: 'number', req: 1, w: 'half' }, { k: 'mes', label: 'Mes', type: 'select', options: L.MESES.map((m, i) => [i + 1, m]), w: 'half' }] },
-  semanas: { n: 'Semanas lectivas', cols: [['_num', 'N°'], ['inicio', 'Inicio'], ['fin', 'Término'], ['tipo', 'Tipo'], ['semestre', 'Sem.'], ['foco', 'Foco']], pre: 'W',
-    f: () => [{ k: 'inicio', label: 'Lunes de inicio', type: 'date', req: 1, w: 'half' }, { k: 'tipo', label: 'Tipo', type: 'select', options: [['LECTIVA', 'Semana lectiva (cuenta)'], ['RECESO', 'Receso / no lectiva (no cuenta)']], w: 'half' }, { k: 'semestre', label: 'Semestre', type: 'select', options: [1, 2], w: 'half' }, { k: 'etiqueta', label: 'Etiqueta (recesos)', w: 'half' }, { k: 'foco', label: 'Foco de la semana', max: 300 }, { k: 'consejo_tema', label: 'Tema del consejo', max: 300 }, { k: 'lineal_cursos', label: 'Cursos reunión lineal', max: 300 }] }
+  semanas: { n: 'Semanas lectivas', cols: [['_num', 'N°'], ['inicio', 'Inicio'], ['fin', 'Término'], ['tipo', 'Tipo'], ['semestre', 'Sem.'], ['etiqueta', 'Etiqueta']], pre: 'W',
+    f: () => [{ k: 'inicio', label: 'Lunes de inicio', type: 'date', req: 1, w: 'half' }, { k: 'tipo', label: 'Tipo', type: 'select', options: [['LECTIVA', 'Semana lectiva (cuenta)'], ['RECESO', 'Receso / no lectiva (no cuenta)']], w: 'half' }, { k: 'semestre', label: 'Semestre', type: 'select', options: [1, 2], w: 'half' }, { k: 'etiqueta', label: 'Etiqueta (recesos)', w: 'half' }] }
 };
 function optEsp() { return [['', '— Sin espacio —']].concat(Object.entries(L.EDIFICIOS).map(([k, n]) => ({ group: n, items: all('espacios').filter(s => s.edificio === k).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })).map(s => [s.id, s.nombre]) }))); }
 function vCfg() {
@@ -521,6 +522,8 @@ function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v
 S.cargarLocal();
 if (S.puedeEditar()) {
   const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); // nombres de columnas anteriores
+  const tal = all('matriz').filter(m => m.categoria === 'TALLER_ACLE' && L.sinTaller(m.titulo) !== m.titulo && /^\s*taller(?:es)?\s/i.test(m.titulo)).map(m => ({ ...m, titulo: L.sinTaller(m.titulo) }));
+  if (tal.length && S.esAdmin()) S.bulk('matriz', tal); // los talleres se nombran sin la palabra "Taller"
   let hecho = false; try { hecho = localStorage.getItem('sigutp:mig-nota') === '1'; } catch { }
   if (!hecho) { // v6: plazos, feriados y cambios de horario pasan a "Nota especial" (una vez; después manda lo que edite el usuario)
     const notas = all('eventos').filter(e => (e.seccion === 'ESTUDIANTES' || e.seccion === 'FUNCIONARIOS' || !e.seccion) && L.RE_NOTA.test(L.norm(e.titulo))).map(e => ({ ...e, seccion: 'NOTA' }));

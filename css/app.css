@@ -260,3 +260,6 @@ h1 { color: var(--navy); }
 @media (max-width: 760px) { .secbar { font-size: 10px; } }
 .wk2 .wk-cell.fila-ref { padding-bottom: 6px; } .wk2 .wk-cell.fila-ref:empty, .wk2 .wk-cell.fila-ref .dlbl:only-child { } .wk2 .wk-cell.fila-tal { border-top: 0; }
 @media (max-width: 760px) { .wk2 .wk-cell.fila-tal:not(:has(.ev)) { display: none; } }
+
+/* trabajo colaborativo PIE: rosado */
+.k-pie { --bg: #fde3ef; --bd: #e0559a; --tx: #7a1747; }
