@@ -309,3 +309,9 @@ h1 { color: var(--navy); }
 .pitem.late { border-color: #ffc2d8; background: #fff5f9; } .pitem.late .pf { color: #c2185b; font-weight: 600; }
 @media (max-width: 760px) { .gtab .gl { min-width: 170px; max-width: 170px; } .plist { grid-template-columns: 1fr; } }
 [data-form=tar] .chk { border-color: var(--line); background: var(--soft); color: var(--text); } [data-form=tar] .chk input { accent-color: var(--navy); }
+.back { display: inline-flex; align-items: center; gap: 6px; margin: 22px 4px -14px; color: var(--mut); font-size: 14px; } .back:hover { color: var(--navy); }
+.card.prox .ch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; } .card.prox h3 small { font-size: 13px; font-weight: 400; margin-left: 6px; }
+.pfil0 { display: flex; align-items: center; gap: 8px; } .pfil0 select { padding: 7px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); min-height: 0; width: auto; }
+.pitem .tl { text-align: left; } .pitem .tl:hover b { text-decoration: underline; }
+.tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: var(--card); flex: none; } .tick:hover { border-color: var(--green); background: #dcf5e2; }
+.pitem.late .tick { border-color: #ffc2d8; }

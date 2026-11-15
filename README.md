@@ -114,9 +114,9 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
 - **Espacios:** por edificio, con capacidad, encargado, ocupación por bloque y aviso de choques al reservar.
 - **Ajustes:** CRUD de funcionarios, cursos, espacios, matriz fija y semanas lectivas; cargar/descargar la base unificada.
 
-## Planeación (carta Gantt UTP)
+## Planeación (en Hoy y carta Gantt)
 
-Pestaña **Planeación** (`#plan`): proyectos agrupados por área del PME (Gestión Pedagógica, Liderazgo, Convivencia,
+En **Hoy**, la tarjeta *Planeación de la semana* lista las tareas de la semana del día elegido (y las atrasadas), con un círculo para marcarlas hechas (con *Deshacer*) y el botón **Carta Gantt** (`#plan`), que muestra los proyectos agrupados por área del PME (Gestión Pedagógica, Liderazgo, Convivencia,
 Gestión de Recursos) y sus tareas como barras sobre las **semanas de clases** (los recesos no cuentan).
 
 - **Datos:** hojas `10_Proyectos` y `11_Tareas` del libro unificado (tablas `proyectos` y `tareas` en la planilla).
@@ -125,7 +125,7 @@ Gestión de Recursos) y sus tareas como barras sobre las **semanas de clases** (
   `evento_id` la liga a un evento del calendario.
 - **Hitos del calendario:** la franja superior cuenta, por semana, los eventos de UTP marcados como *Nota especial*
   (plazos, cierres). No hay que copiarlos a la Gantt.
-- **Filtros:** año, semestre, área y responsable. Arriba, las tareas de las próximas 3 semanas (en rojo las atrasadas).
+- **Filtros:** año, semestre, área y responsable (el responsable elegido también filtra la tarjeta de Hoy).
 - **Años sin semanas cargadas** (p. ej. 2027 antes del calendario oficial) usan un año base provisional y lo avisan.
 - **Permisos:** `admin` y `editor` crean y editan; `lector` (p. ej. el resto del equipo directivo) solo ve.
 - **Privacidad:** esta base la ve el equipo directivo. Las notas privadas no van aquí.

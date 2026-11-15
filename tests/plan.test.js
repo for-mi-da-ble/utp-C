@@ -14,6 +14,10 @@ const jwt = email => ['x', Buffer.from(JSON.stringify({ aud: CID, iss: 'https://
   assert(/\d+ proyectos, \d+ tareas/.test(await A.textContent('#toast')), 'la base debe traer proyectos y tareas'); await sincronizado(A);
   const hoja = await (await fetch(U + '/__sheet')).json(); assert(hoja.proyectos.length > 5 && hoja.tareas.length > 20, 'proyectos y tareas deben subir a la planilla'); console.log('✓ proyectos', hoja.proyectos.length - 1, 'y tareas', hoja.tareas.length - 1, 'en la planilla');
   await A.goto(U + '/#plan'); await A.waitForSelector('tr.gt'); const n0 = await A.locator('tr.gt').count(); assert(n0 > 10); console.log('✓ Gantt con', n0, 'tareas visibles');
+  // Hoy: tareas de la semana con marcado rápido
+  await A.goto(U + '/#hoy'); await A.waitForSelector('.card.prox .pitem'); const n1 = await A.locator('.card.prox .tick').count(); assert(n1 > 0, 'Hoy debe listar tareas de la semana');
+  await A.locator('.card.prox .tick').first().click(); assert((await A.textContent('#toast')).startsWith('Hecha'), 'marcar hecha desde Hoy'); assert.equal(await A.locator('.card.prox .tick').count(), n1 - 1); console.log('✓ Hoy muestra', n1, 'tareas de la semana y permite marcarlas hechas');
+  assert.equal(await A.locator('#nav a[href="#plan"]').count(), 0, 'Planeación ya no es pestaña'); await A.click('.card.prox a[href="#plan"]'); await A.waitForSelector('tr.gt'); assert(await A.locator('#nav a.on[href="#hoy"]').count() === 1); console.log('✓ la carta Gantt se abre desde Hoy');
   // editor crea una tarea desde la app
   const E = await sesion('editor@colegio.test'); await sincronizado(E); await E.goto(U + '/#plan'); await E.waitForSelector('tr.gp');
   await E.locator('[data-a=plan-tar-n][data-p]').first().click(); await E.fill('#f_titulo', 'Tarea del editor'); await E.fill('#f_inicio', '2026-11-23'); await E.fill('#f_fin', '2026-11-27'); await E.click('[data-a=guardar]'); assert.equal(await E.textContent('#toast'), 'Guardado'); await E.waitForTimeout(1500); await sincronizado(E);

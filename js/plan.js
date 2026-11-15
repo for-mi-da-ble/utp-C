@@ -10,6 +10,7 @@ export const AREAS_PME = [['GP', 'Gestión Pedagógica', 'blue'], ['LID', 'Lider
 const AREA = Object.fromEntries(AREAS_PME.map(([k, n, c]) => [k, { n, c }]));
 export const EST_TAREA = [['PENDIENTE', 'Pendiente'], ['EN_CURSO', 'En curso'], ['HECHA', 'Hecha']];
 export const EST_PROY = [['EN_CURSO', 'En curso'], ['BORRADOR', 'Borrador'], ['CERRADO', 'Cerrado']];
+let ultimaHecha = null;
 const st = { anio: 0, area: '', resp: '', hechas: true, tramo: 'anio' };
 
 const ed = () => S.puedeEditar();
@@ -64,21 +65,38 @@ export function vPlan(head) {
     }
   }
   if (!body) body = `<tr><td colspan="${cols.length + 1}" class="gvac">${all('proyectos').length ? 'No hay tareas con estos filtros.' : 'Aún no hay proyectos. Carga la base unificada con las hojas 10_Proyectos y 11_Tareas, o crea el primero.'}</td></tr>`;
-  // próximas tareas (3 semanas)
-  const lim = L.addDias(L.hoy(), 21), prox = all('tareas').filter(t => t.estado !== 'HECHA' && (t.fin || t.inicio) <= lim && (!st.resp || L.norm(t.responsable) === L.norm(st.resp))).sort((a, b) => String(a.fin || a.inicio).localeCompare(String(b.fin || b.inicio))).slice(0, 8);
-  const prx = prox.length ? `<div class="card prox"><h3>Próximas 3 semanas${st.resp ? ` · ${esc(st.resp)}` : ''}</h3><div class="plist">${prox.map(t => { const p = get('proyectos', t.proyecto_id) || {}; return `<button class="pitem ${atrasada(t) ? 'late' : ''}" data-a="plan-tar" data-id="${esc(t.id)}"><span class="dot ${(AREA[p.area] || {}).c || 'gray'}"></span><span class="grow"><b>${esc(t.titulo)}</b><small>${esc(p.nombre || '')}${t.responsable ? ' · ' + esc(t.responsable) : ''}${t.duracion_min ? ' · ' + esc(t.duracion_min) + ' min' : ''}</small></span><span class="pf">${atrasada(t) ? 'Atrasada · ' : ''}${L.fechaCorta(t.fin || t.inicio)}</span></button>`; }).join('')}</div></div>` : '';
   const filtros = `<div class="pills scroll">${ys.map(a => `<button class="pill sm ${a === st.anio ? 'on' : ''}" data-a="plan-anio" data-v="${a}">${a}</button>`).join('')}<span class="sep"></span>
     ${[['anio', 'Año'], ['1', '1° sem.'], ['2', '2° sem.']].map(([k, n]) => `<button class="pill sm ${st.tramo === k ? 'on' : ''}" data-a="plan-tramo" data-v="${k}">${n}</button>`).join('')}<span class="sep"></span>
     <button class="pill sm ${!st.area ? 'on' : ''}" data-a="plan-area" data-v="">Todas las áreas</button>${AREAS_PME.map(([k, n, c]) => `<button class="pill sm ${st.area === k ? 'on' : ''}" data-a="plan-area" data-v="${k}"><span class="dot ${c}"></span>${n}</button>`).join('')}</div>
     <div class="row sm pfil"><label>Responsable <select data-c="plan-resp"><option value="">Todos</option>${resps.map(r => `<option ${r === st.resp ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
     <label class="pchk"><input type="checkbox" data-c="plan-hechas" ${st.hechas ? 'checked' : ''}><span>Mostrar tareas hechas</span></label>
     ${prov ? `<span class="tag amber">Semanas ${st.anio} provisionales (año base). Ajusta las semanas lectivas en Ajustes cuando salga el calendario oficial.</span>` : ''}</div>`;
-  return head('Planeación', `Carta Gantt UTP ${st.anio} por área del PME · rombo = hito de un día · números arriba = hitos del calendario`,
+  return `<a class="back" href="#hoy">${ic('left')} Volver a Hoy</a>` + head('Carta Gantt', `Planeación UTP ${st.anio} por área del PME · rombo = hito de un día · números arriba = hitos del calendario`,
     ed() ? `<button class="btn" data-a="plan-pry-n">${ic('plus')} Proyecto</button><button class="btn dark" data-a="plan-tar-n">${ic('plus')} Tarea</button>` : '')
-    + filtros + prx
+    + filtros
     + `<div class="card nopad"><div class="gantt"><table class="gtab"><thead><tr><th class="gl gcorner" rowspan="2">Proyecto / tarea</th>${thM}</tr><tr>${thW}</tr></thead>
       <tbody><tr class="gh-row"><th class="gl"><small>Hitos del calendario</small></th>${trH}</tr>${body}</tbody></table></div></div>
       <p class="muted sm legend"><span class="gb blue a z demo"></span> tarea · <span class="gb late a z demo"></span> atrasada · <span class="gb done a z demo"></span> hecha · columnas grises = receso o fuera del año lectivo · la columna marcada es la semana actual</p>`;
+}
+
+/** Bloque para la vista Hoy: tareas de la semana del día elegido y las atrasadas, con marcado rápido. */
+export function bloqueHoy(fecha) {
+  const lu = lun(fecha), vi = L.addDias(lu, 4), hoyL = lun(L.hoy());
+  const mia = t => !st.resp || L.norm(t.responsable) === L.norm(st.resp);
+  const sem = all('tareas').filter(t => t.estado !== 'HECHA' && mia(t) && t.inicio <= vi && (t.fin || t.inicio) >= lu);
+  const atr = lu === hoyL ? all('tareas').filter(t => mia(t) && atrasada(t) && (t.fin || t.inicio) < lu) : [];
+  const hechas = all('tareas').filter(t => t.estado === 'HECHA' && mia(t) && t.inicio <= vi && (t.fin || t.inicio) >= lu).length;
+  const lista = atr.concat(sem.sort((a, b) => String(a.fin || a.inicio).localeCompare(String(b.fin || b.inicio))));
+  const fila = t => { const p = get('proyectos', t.proyecto_id) || {}, late = atrasada(t);
+    return `<div class="pitem ${late ? 'late' : ''}">${ed() ? `<button class="tick" data-a="plan-ok" data-id="${esc(t.id)}" aria-label="Marcar hecha: ${esc(t.titulo)}" title="Marcar hecha"></button>` : `<span class="dot ${(AREA[p.area] || {}).c || 'gray'}"></span>`}
+      <button class="grow tl" data-a="plan-tar" data-id="${esc(t.id)}"><b>${t.hito === 'SI' ? '◆ ' : ''}${esc(t.titulo)}</b><small>${esc(p.nombre || '')}${t.responsable ? ' · ' + esc(t.responsable) : ''}${t.duracion_min ? ' · ' + esc(t.duracion_min) + ' min' : ''}</small></button>
+      <span class="pf">${late ? 'Atrasada · ' : ''}${t.hito === 'SI' || !t.fin || t.fin === t.inicio ? L.fechaCorta(t.inicio) : 'hasta ' + L.fechaCorta(t.fin)}</span></div>`; };
+  const resps = [...new Set(all('tareas').map(t => t.responsable).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  return `<div class="card prox"><div class="ch"><h3>Planeación de la semana <small class="muted">${L.fechaCorta(lu)} – ${L.fechaCorta(vi)}</small></h3>
+    <div class="row sm pfil0"><select data-c="plan-resp" aria-label="Responsable"><option value="">Todos</option>${resps.map(r => `<option ${r === st.resp ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>
+    ${ed() ? `<button class="ibtn" data-a="plan-tar-n" aria-label="Nueva tarea">${ic('plus')}</button>` : ''}<a class="btn sm" href="#plan">${ic('gantt')} Carta Gantt</a></div></div>
+    ${lista.length ? `<div class="plist">${lista.slice(0, 12).map(fila).join('')}</div>${lista.length > 12 ? `<p class="muted sm">…y ${lista.length - 12} más en la carta Gantt.</p>` : ''}` : `<div class="okbox">${ic('check')}<p>Sin tareas pendientes esta semana${hechas ? ` (${hechas} hecha${hechas > 1 ? 's' : ''})` : ''}.</p></div>`}
+    ${atr.length ? `<p class="muted sm">${atr.length} atrasada${atr.length > 1 ? 's' : ''} de semanas anteriores al inicio de la lista.</p>` : ''}</div>`;
 }
 
 // ---------- modales ----------
@@ -142,6 +160,8 @@ export const ACCIONES = {
   'plan-pry': el => mProyecto(el.dataset.id), 'plan-pry-n': () => mProyecto(''),
   'plan-tar': el => mTarea(el.dataset.id), 'plan-tar-n': el => mTarea('', el.dataset.p ? { proyecto_id: el.dataset.p, responsable: (get('proyectos', el.dataset.p) || {}).responsable || '' } : {}),
   'plan-hitos': el => mHitos(el.dataset.v),
+  'plan-ok': el => { const t = get('tareas', el.dataset.id); if (!t || !ed()) return; put('tareas', { ...t, estado: 'HECHA' }); toast(`Hecha: ${String(t.titulo).slice(0, 40)}`, 'ok', ['Deshacer', 'plan-deshacer']); ultimaHecha = t; },
+  'plan-deshacer': () => { if (ultimaHecha) { put('tareas', ultimaHecha); ultimaHecha = null; toast('Restaurada', 'ok'); } },
   'plan-hecha': () => { const f = document.querySelector('[data-form=tar]'), t = f && get('tareas', f.dataset.id); if (!t) return; put('tareas', { ...t, estado: t.estado === 'HECHA' ? 'PENDIENTE' : 'HECHA' }); document.querySelector('#modal-root').innerHTML = ''; toast(t.estado === 'HECHA' ? 'Tarea reabierta' : 'Tarea hecha', 'ok'); }
 };
 export function cambioPlan(el) {

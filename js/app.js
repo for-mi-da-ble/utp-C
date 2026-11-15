@@ -7,7 +7,7 @@ import * as P from './plan.js';
 const CFG = window.SIG_CONFIG || {};
 const { all, get, put, del } = S;
 const ui = { view: 'hoy', fecha: L.proximoHabil(L.hoy()), mes: '', hTab: 'curso', ciclo: '', curso: '', func: '', sabDia: 0, sabJ: 'M', edit: false, rutMes: false, edificio: 'ED_MATRIZ', cfg: 'datos', q: '', area: '' };
-const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['plan', 'Planeación', 'gantt'], ['horarios', 'Horarios', 'grid'], ['espacios', 'Espacios', 'pin']];
+const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['horarios', 'Horarios', 'grid'], ['espacios', 'Espacios', 'pin']];
 const ed = () => S.puedeEditar(), adm = () => S.esAdmin();
 const lunes = () => L.lunesDe(ui.fecha);
 const cursosOrd = () => all('cursos').slice().sort((a, b) => a.orden - b.orden);
@@ -21,8 +21,8 @@ function render(fondo) {
   const a = document.activeElement; // una actualización de fondo (sincronización) no debe pisar lo que se está escribiendo en línea
   if (fondo === true && a && a.closest && a.closest('#view') && a.dataset.inline) { pendFondo = true; return; }
   pendFondo = false;
-  $('#nav').innerHTML = VISTAS.map(([k, n]) => `<a href="#${k}" class="pill ${ui.view === k ? 'on' : ''}">${n}</a>`).join('');
-  $('#bnav').innerHTML = VISTAS.concat([['config', 'Ajustes', 'gear']]).map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
+  $('#nav').innerHTML = VISTAS.map(([k, n]) => `<a href="#${k}" class="pill ${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${n}</a>`).join('');
+  $('#bnav').innerHTML = VISTAS.concat([['config', 'Ajustes', 'gear']]).map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
   const e = S.estado, pend = S.pendientes();
   const st = { local: ['Modo local', 'gray'], ok: ['Sincronizado', 'green'], sincronizando: ['Sincronizando…', 'blue'], pendiente: ['Conectando…', 'blue'], offline: ['Sin conexión', 'amber'], error: ['Error de sincronización', 'pink'], sesion: ['Inicia sesión', 'amber'] }[e.sync];
   $('#sync').innerHTML = `<span class="dot ${st[1]}"></span><span class="lbl">${st[0]}${pend && S.nube ? ` · ${pend}` : ''}</span>`;
@@ -65,6 +65,7 @@ function vHoy() {
       <div class="card kpi"><div class="kh"><span class="avatar ${sin ? 'amber' : 'green'}">${ic(sin ? 'alert' : 'check')}</span><span>Bloques<br>sin cubrir</span></div><div class="big">${sin}<sup class="${sin ? 'dn' : 'up'}">${r.cubiertos}/${r.afectados} cubiertos</sup></div><div class="bar"><i class="${sin ? 'pink' : 'green'}" style="width:${Math.round(p * 100)}%"></i></div></div>
       <div class="card kpi"><div class="kh"><span class="avatar blue">${ic('cal')}</span><span>Semana<br>de clases</span><a class="ibtn" href="#semana" aria-label="Ver semana">${ic('arrow')}</a></div><div class="big">${w && w.num ? w.num : '—'}<sup>${w ? `Semestre ${esc(w.semestre)}` : ''}</sup></div><div class="kf">${r.eventos.length} actividad${r.eventos.length === 1 ? '' : 'es'} hoy${L.cumplesEntre(f, f).length ? ' · 🎂 ' + L.cumplesEntre(f, f).length + ' cumpleaños' : ''}</div></div>
     </div>
+    ${P.bloqueHoy(f)}
     <div class="grid2w">
       <div class="card"><div class="ch"><h3>Ausencias y cobertura</h3>${r.afectados ? `<div class="dmini">${donut(p, sin ? 'var(--pink)' : 'var(--green)')}<b>${Math.round(p * 100)}%</b></div>` : ''}</div>
         ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>Sin ausencias registradas para este día.</p></div>`}</div>
@@ -531,7 +532,7 @@ initDrag((src, dst) => {
 });
 
 // ============ arranque ============
-function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
+function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' || h === 'plan' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
 S.cargarLocal();
 if (S.puedeEditar()) {
   const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); // nombres de columnas anteriores
