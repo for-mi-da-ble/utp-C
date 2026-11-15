@@ -242,7 +242,9 @@ const ESQUEMA = {
   cursos: ['06_Cursos', ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie']],
   matriz: ['07_Matriz_Fija_Semanal', ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes']],
   bloques: ['08_Bloques_Docentes', ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id']],
-  cumpleanos: ['09_Cumpleanos', ['id', 'nombre', 'dia', 'mes']]
+  cumpleanos: ['09_Cumpleanos', ['id', 'nombre', 'dia', 'mes']],
+  proyectos: ['10_Proyectos', ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden']],
+  tareas: ['11_Tareas', ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']]
 };
 const HOJA_DE = {}; for (const t in ESQUEMA) { HOJA_DE[ESQUEMA[t][0]] = t; HOJA_DE['SIG_' + t] = t; }
 const LEEME = [
@@ -259,7 +261,9 @@ const LEEME = [
   ['06_Cursos', 'El id es el nombre del curso. jornada = MANANA o TARDE.'],
   ['07_Matriz_Fija_Semanal', 'categoria = TALLER_ACLE, REFORZAMIENTO o REUNION_FIJA. dia = 1 (lunes) a 5 (viernes).'],
   ['08_Bloques_Docentes', 'Horario de cada funcionario por bloque. De aquí salen los horarios de cursos, la sábana y la cobertura. tipo = CLASE, CODOC, NOLECT, AULAREC, COLAB, COLACION, TURNO, CONSEJO, LINEAL, DEPTO, COORD, GESTION, APOD, ACLE.'],
-  ['09_Cumpleanos', 'Cumpleaños de funcionarios: nombre, dia (1-31) y mes (1-12). Sin año ni RUN. Se cargan desde los listados de docentes y asistentes del Mineduc (.csv) en Ajustes → Agregar desde archivos originales.'], [''],
+  ['09_Cumpleanos', 'Cumpleaños de funcionarios: nombre, dia (1-31) y mes (1-12). Sin año ni RUN. Se cargan desde los listados de docentes y asistentes del Mineduc (.csv) en Ajustes → Agregar desde archivos originales.'],
+  ['10_Proyectos', 'Proyectos de la Planeación UTP (carta Gantt). area = GP (Gestión Pedagógica), LID (Liderazgo), CONV (Convivencia) o REC (Gestión de Recursos). estado = EN_CURSO, BORRADOR o CERRADO. doc_url = enlace al Doc del proyecto (acta y bitácora). orden = posición dentro de su área. No guardes aquí notas privadas: esta base la ve el equipo directivo.'],
+  ['11_Tareas', 'Tareas de cada proyecto: una barra en la Gantt desde inicio hasta fin (AAAA-MM-DD). hito = SI si es un solo día clave (rombo). estado = PENDIENTE, EN_CURSO o HECHA. duracion_min = minutos estimados para reservar tiempo en el calendario. agendada = cuándo quedó bloqueada en el calendario. evento_id = id del evento de 02_Eventos_Calendario con el que se relaciona (opcional).'], [''],
   ['REGLAS AL EDITAR A MANO:'],
   ['• No cambies la columna id ni los nombres de las hojas o encabezados. Para agregar una fila, inventa un id nuevo que no se repita.'],
   ['• Fechas como texto AAAA-MM-DD (ej.: 2026-11-12) y horas como texto HH:MM (ej.: 08:45).'],
@@ -273,7 +277,7 @@ function importarUnificada(X, wb) {
     for (const r of X.utils.sheet_to_json(wb.Sheets[n], { raw: false, defval: '', dateNF: 'yyyy-mm-dd' })) {
       const id = String(r.id == null ? '' : r.id).trim(); if (!id || vistos.has(id)) continue; vistos.add(id);
       const o = { id }; for (const k of cols) { if (k === 'id') continue; let x = String(r[k] == null ? '' : r[k]).trim(); if (x === '') continue;
-        if (k === 'ini' || k === 'fin') x = hhmm(x) || x; else if (k === 'dia' || k === 'orden' || k === 'mes') x = +x || 0; o[k] = x; }
+        if ((k === 'ini' || k === 'fin') && t !== 'tareas') x = hhmm(x) || x; else if (k === 'dia' || k === 'orden' || k === 'mes') x = +x || 0; o[k] = x; }
       if (t === 'matriz' && o.categoria === 'TALLER_ACLE' && o.titulo) o.titulo = sinTaller(o.titulo); // los talleres se nombran sin "Taller"
       if (t === 'eventos') { if (!o.detalle && r.nota) o.detalle = String(r.nota).trim(); if (!o.origen && r.tipo) o.origen = String(r.tipo).trim(); Object.assign(o, migrarEvento(o) || {}); if (o.mensual) o.mensual = /^s/i.test(o.mensual) ? 'SI' : 'NO'; if (o.especial) o.especial = /^s/i.test(o.especial) ? 'SI' : 'NO'; } // bases anteriores (nota, tipo)
       rows.push(o);
@@ -283,6 +287,8 @@ function importarUnificada(X, wb) {
   // Validación mínima antes de reemplazar: evita vaciar la app con un libro dañado.
   for (const e of tablas.eventos || []) if (!/^\d{4}-\d{2}-\d{2}$/.test(e.fecha || '')) throw new Error(`Fecha inválida en 02_Eventos_Calendario (id ${e.id}): "${e.fecha || ''}". Usa texto AAAA-MM-DD.`);
   for (const b of tablas.bloques || []) if (!(tmin(b.fin) > tmin(b.ini)) || !(b.dia >= 1 && b.dia <= 5)) throw new Error(`Bloque inválido en 08_Bloques_Docentes (id ${b.id}): revisa dia, ini y fin.`);
+  for (const t of tablas.tareas || []) for (const k of ['inicio', 'fin']) if (t[k] && !/^\d{4}-\d{2}-\d{2}$/.test(t[k])) throw new Error(`Fecha inválida en 11_Tareas (id ${t.id}, ${k}): "${t[k]}". Usa texto AAAA-MM-DD.`);
+  for (const t of tablas.tareas || []) if (!t.inicio) throw new Error(`Falta la fecha de inicio en 11_Tareas (id ${t.id}).`);
   for (const w of tablas.semanas || []) if (!/^\d{4}-\d{2}-\d{2}$/.test(w.inicio || '')) throw new Error(`Fecha inválida en 01_Semanas_Clases (id ${w.id}).`);
   for (const t in ESQUEMA) if (tablas[t]) { bulk(t, tablas[t], true); res.push(`${tablas[t].length} ${{ cumpleanos: 'cumpleaños', matriz: 'actividades fijas' }[t] || t}`); }
   return `Base unificada cargada: ${res.join(', ')}.`;
@@ -311,7 +317,7 @@ function XLSX_escribir(X, vistas) {
   const wb = X.utils.book_new(), lee = X.utils.aoa_to_sheet(LEEME); lee['!cols'] = [{ wch: 28 }, { wch: 120 }]; X.utils.book_append_sheet(wb, lee, 'LEEME');
   const ANCHO = { titulo: 46, mensual: 9, nombre: 34, detalle: 34, nota: 40, cobertura: 30, participantes: 40, equipo_pie: 40, profesor_jefe: 28, cargo: 34, id: 20, foco: 30 };
   for (const t in ESQUEMA) { const [hoja, cols] = ESQUEMA[t];
-    const orden = t === 'eventos' || t === 'ausencias' ? (a, b) => String(a.fecha).localeCompare(String(b.fecha)) : t === 'semanas' ? (a, b) => String(a.inicio).localeCompare(String(b.inicio)) : t === 'cursos' ? (a, b) => a.orden - b.orden : t === 'bloques' ? (a, b) => String(a.func_id).localeCompare(String(b.func_id), 'es', { numeric: true }) || a.dia - b.dia || tmin(a.ini) - tmin(b.ini) : (a, b) => String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
+    const orden = t === 'tareas' ? (a, b) => String(a.inicio).localeCompare(String(b.inicio)) || String(a.proyecto_id).localeCompare(String(b.proyecto_id)) : t === 'proyectos' ? (a, b) => String(a.area).localeCompare(String(b.area)) || (+a.orden || 99) - (+b.orden || 99) : t === 'eventos' || t === 'ausencias' ? (a, b) => String(a.fecha).localeCompare(String(b.fecha)) : t === 'semanas' ? (a, b) => String(a.inicio).localeCompare(String(b.inicio)) : t === 'cursos' ? (a, b) => a.orden - b.orden : t === 'bloques' ? (a, b) => String(a.func_id).localeCompare(String(b.func_id), 'es', { numeric: true }) || a.dia - b.dia || tmin(a.ini) - tmin(b.ini) : (a, b) => String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
     const aoa = [cols].concat(all(t).slice().sort(orden).map(r => cols.map(k => t === 'eventos' && k === 'seccion' ? seccionDe(r) : t === 'eventos' && k === 'mensual' ? (r.mensual || 'NO') : t === 'eventos' && k === 'especial' ? (esEspecial(r) ? 'SI' : 'NO') : r[k] == null ? '' : String(r[k]))));
     const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = cols.map(k => ({ wch: ANCHO[k] || 14 })); ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(aoa.length - 1, 0), c: cols.length - 1 } }) };
     X.utils.book_append_sheet(wb, ws, hoja); }

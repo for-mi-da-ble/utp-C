@@ -2,13 +2,13 @@
 // Sirve la app en http://localhost:8766 con la API en /exec. SOLO PARA PRUEBAS.
 const http = require('http'), fs = require('fs'), path = require('path'), vm = require('vm'), crypto = require('crypto');
 const ROOT = path.join(__dirname, '..'), CID = 'test-client.apps.googleusercontent.com';
-const sheets = {}, props = {}, cache = {};
+const sheets = {}, props = {}, cache = {}, triggers = [];
 function Sheet(name) { this.name = name; this.d = []; }
 Sheet.prototype = {
   getName() { return this.name; }, getLastRow() { return this.d.length; }, getLastColumn() { return this.d[0] ? this.d[0].length : 0; }, getMaxRows() { return Math.max(this.d.length, 1000); }, getMaxColumns() { return 26; },
   setFrozenRows() { }, insertRowsAfter() { }, appendRow(r) { this.d.push(r.map(String)); }, deleteRow(n) { this.d.splice(n - 1, 1); },
   getDataRange() { return this.getRange(1, 1, this.d.length, this.getLastColumn()); },
-  getRange(r, c, nr, nc) { const s = this; return { setFontWeight() { return this; }, setNumberFormat() { return this; },
+  getRange(r, c, nr, nc) { const s = this; return { setFontWeight() { return this; }, setNumberFormat() { return this; }, setValue(v) { return this.setValues([[v]]); },
     setValues(v) { for (let i = 0; i < v.length; i++) { s.d[r - 1 + i] = s.d[r - 1 + i] || []; for (let j = 0; j < v[i].length; j++) { let x = String(v[i][j]); if (/^[=+]/.test(x)) throw new Error('FORMULA SIN SANEAR: ' + x); s.d[r - 1 + i][c - 1 + j] = x.replace(/^'/, ''); } } return this; }, // Sheets oculta el apóstrofo inicial
     getDisplayValues() { const o = []; for (let i = 0; i < nr; i++) { const row = []; for (let j = 0; j < nc; j++) row.push((s.d[r - 1 + i] || [])[c - 1 + j] || ''); o.push(row); } return o; }, getSheet() { return s; }, getRow() { return r; }, getNumRows() { return nr; } }; }
 };
@@ -17,6 +17,7 @@ const sandbox = { console, JSON, Date, Math, String, Number, Object, Array, enco
   SpreadsheetApp: { getActiveSpreadsheet: () => ss }, Session: { getEffectiveUser: () => ({ getEmail: () => 'admin@colegio.test' }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), setProperties: o => Object.assign(props, o) }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
+  ScriptApp: { getProjectTriggers: () => triggers, newTrigger: h => ({ timeBased() { return this; }, everyMinutes() { return this; }, create() { triggers.push({ getHandlerFunction: () => h }); } }) },
   LockService: { getScriptLock: () => ({ waitLock() { }, tryLock: () => true, releaseLock() { } }) },
   Utilities: { DigestAlgorithm: { SHA_256: 1 }, computeDigest: (a, s) => [...crypto.createHash('sha256').update(s).digest()], base64EncodeWebSafe: b => Buffer.from(b).toString('base64url') },
   UrlFetchApp: { fetch: u => { // imita tokeninfo: el "token" de prueba es header.payload.firma con firma "ok"
@@ -29,6 +30,9 @@ sheets.usuarios.appendRow(['editor@colegio.test', 'editor', '']); sheets.usuario
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   if (req.url === '/exec' && req.method === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', () => { const out = sandbox.doPost({ postData: { contents: b } }); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(out.t); }); return; }
+  if (req.url === '/__externo' && req.method === 'POST') { // imita una escritura por la API de Sheets (sin onEdit): fila con _rev vacío
+    let b = ''; req.on('data', c => b += c); req.on('end', () => { const { t, row } = JSON.parse(b), sh = sheets[t], head = sh.d[0]; sh.d.push(head.map(h => h === '_rev' || h === '_del' || h === '_por' ? '' : String(row[h] ?? ''))); res.end('{"ok":true}'); }); return; }
+  if (req.url === '/__sellar') { sandbox.sellarExternos(); res.end(JSON.stringify({ ok: true, triggers: triggers.map(x => x.getHandlerFunction()) })); return; }
   if (req.url === '/__sheet') { res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([k, s]) => [k, s.d])))); return; }
   let f = req.url.split('?')[0]; if (f === '/') f = '/index.html';
   if (f === '/config.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(`window.SIG_CONFIG={API_URL:'/exec',GOOGLE_CLIENT_ID:'${CID}',COLEGIO:'Colegio de Prueba',ANIO:2026};`); }

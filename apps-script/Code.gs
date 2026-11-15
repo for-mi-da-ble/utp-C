@@ -13,7 +13,9 @@ var TABLAS = {
   espacios: ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado'],
   bloques: ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id'],
   matriz: ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes'],
-  cumpleanos: ['id', 'nombre', 'dia', 'mes']
+  cumpleanos: ['id', 'nombre', 'dia', 'mes'],
+  proyectos: ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden'],
+  tareas: ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']
 };
 var META = ['_rev', '_del', '_por'];
 var SOLO_ADMIN = { funcionarios: 1, cursos: 1, espacios: 1, bloques: 1, matriz: 1, semanas: 1 };
@@ -28,6 +30,43 @@ function instalar() {
   var p = PropertiesService.getScriptProperties();
   if (!p.getProperty('REV')) p.setProperty('REV', '0');
   if (!p.getProperty('GOOGLE_CLIENT_ID')) p.setProperty('GOOGLE_CLIENT_ID', 'PEGA_AQUI_TU_CLIENT_ID');
+  instalarDisparadores();
+}
+
+/** Crea (una sola vez) el disparador que sella cada 5 minutos los cambios hechos fuera de la app. Se puede ejecutar de nuevo sin duplicarlo. */
+function instalarDisparadores() {
+  var ya = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sellarExternos'; });
+  if (!ya) ScriptApp.newTrigger('sellarExternos').timeBased().everyMinutes(5).create();
+}
+
+/**
+ * Cambios externos: quien escriba en la planilla por la API de Google Sheets (por ejemplo un asistente que agrega
+ * tareas o marca una como agendada) no dispara onEdit, así que la app no se enteraría. Regla: al escribir desde fuera
+ * se deja VACÍA la columna _rev de la fila nueva o modificada. Esta función les asigna una revisión nueva y las
+ * marca como `externo`, de modo que todas las copias de la app las reciben en su próxima sincronización.
+ */
+function sellarExternos() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return;
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), props = PropertiesService.getScriptProperties();
+    var rev = Number(props.getProperty('REV')) || 0, nuevas = {}, hubo = false;
+    Object.keys(TABLAS).forEach(function (t) {
+      var sh = ss.getSheetByName(t); if (!sh || sh.getLastRow() < 2) return;
+      var vals = sh.getDataRange().getDisplayValues(), head = vals[0], cId = head.indexOf('id'), cr = head.indexOf('_rev'), cp = head.indexOf('_por');
+      if (cr < 0 || cId < 0) return;
+      var filas = [];
+      for (var r = 1; r < vals.length; r++) if (vals[r][cId] && !vals[r][cr]) filas.push(r);
+      if (!filas.length) return;
+      if (!hubo) { rev++; hubo = true; }
+      filas.forEach(function (r) {
+        sh.getRange(r + 1, cr + 1).setValue(String(rev));
+        if (cp >= 0) sh.getRange(r + 1, cp + 1).setValue('externo');
+      });
+      nuevas['REV_' + t] = String(rev);
+    });
+    if (hubo) { nuevas.REV = String(rev); props.setProperties(nuevas); }
+  } finally { lock.releaseLock(); }
 }
 function hoja_(ss, nombre, cols) {
   var sh = ss.getSheetByName(nombre) || ss.insertSheet(nombre);

@@ -2,11 +2,12 @@ import * as S from './store.js';
 import * as L from './logic.js';
 import { esc, $, ic, toast, modal, cerrarModal, campos, leerForm, initDrag, copiar } from './ui.js';
 import { importarArchivo, exportarLibro } from './io.js';
+import * as P from './plan.js';
 
 const CFG = window.SIG_CONFIG || {};
 const { all, get, put, del } = S;
 const ui = { view: 'hoy', fecha: L.proximoHabil(L.hoy()), mes: '', hTab: 'curso', ciclo: '', curso: '', func: '', sabDia: 0, sabJ: 'M', edit: false, rutMes: false, edificio: 'ED_MATRIZ', cfg: 'datos', q: '', area: '' };
-const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['horarios', 'Horarios', 'grid'], ['espacios', 'Espacios', 'pin']];
+const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['plan', 'Planeación', 'gantt'], ['horarios', 'Horarios', 'grid'], ['espacios', 'Espacios', 'pin']];
 const ed = () => S.puedeEditar(), adm = () => S.esAdmin();
 const lunes = () => L.lunesDe(ui.fecha);
 const cursosOrd = () => all('cursos').slice().sort((a, b) => a.orden - b.orden);
@@ -28,7 +29,7 @@ function render(fondo) {
   $('#sync').title = e.error || (e.email ? e.email + ' · ' + e.rol : '');
   const v = $('#view'), y = window.scrollY;
   if (!all('funcionarios').length && ui.view !== 'config') v.innerHTML = vacio();
-  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHor, espacios: vEsp, config: vCfg }[ui.view] || vHoy)();
+  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHor, espacios: vEsp, plan: () => P.vPlan(head), config: vCfg }[ui.view] || vHoy)();
   window.scrollTo(0, y);
   $('#login').hidden = !(S.nube && !S.sesionValida() && !S.estado.rol);
   $('#banner').innerHTML = S.nube && !S.sesionValida() && S.estado.rol ? `<div class="banner">${ic('alert')} Sesión expirada: ves la copia guardada en este dispositivo. <button class="btn sm" data-a="relogin">Iniciar sesión</button></div>` : (e.sync === 'error' && e.error ? `<div class="banner pink">${ic('alert')} ${esc(e.error)}</div>` : '');
@@ -431,6 +432,7 @@ function guardar(f) {
     put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: id || S.uid('AU') });
     ui.fecha = o.fecha; if (!id) location.hash = '#hoy';
   }
+  else if (f === 'pry' || f === 'tar') { if (!P.guardarPlan(f, o, id)) return; }
   else if (f === 'cum') { o.dia = +o.dia; o.mes = +o.mes; if (!(o.dia >= 1 && o.dia <= 31)) return toast('El día debe estar entre 1 y 31', 'err'); const fu = funcPorNombre(o.nombre); put('cumpleanos', { ...o, nombre: fu ? fu.nombre : o.nombre, id: id || S.uid('CU') }); }
   else if (f === 'blq') { if (!(L.tmin(o.fin) > L.tmin(o.ini))) return toast('La hora de término debe ser posterior al inicio', 'err'); put('bloques', { ...(get('bloques', id) || {}), ...o, dia: +o.dia, id: id || S.uid('B') }); }
   else if (f === 'crud') {
@@ -445,7 +447,8 @@ function guardar(f) {
 }
 function borrar(btn, f) {
   if (!btn.dataset.ok) { btn.dataset.ok = 1; btn.textContent = '¿Seguro? Toca de nuevo'; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.ok; btn.textContent = 'Eliminar'; } }, 3500); return; }
-  const form = $(`[data-form=${f}]`), t = { ev: 'eventos', aus: 'ausencias', blq: 'bloques', cum: 'cumpleanos', crud: form.dataset.t }[f];
+  const form = $(`[data-form=${f}]`), t = { ev: 'eventos', aus: 'ausencias', blq: 'bloques', cum: 'cumpleanos', pry: 'proyectos', tar: 'tareas', crud: form.dataset.t }[f];
+  if (!P.puedeBorrar(t, form.dataset.id)) return;
   if (t === 'funcionarios' && all('bloques').some(b => b.func_id === form.dataset.id)) return toast('Tiene bloques de horario asignados: reasígnalos antes de eliminar', 'err');
   if (t === 'cursos' && all('bloques').some(b => b.curso_id === form.dataset.id)) return toast('El curso tiene bloques de horario: no se puede eliminar', 'err');
   del(t, form.dataset.id); cerrarModal(); toast('Eliminado');
@@ -495,6 +498,7 @@ const A = {
   salir: el => { if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = '¿Seguro? Toca de nuevo'; return; } S.cerrarSesion(true); },
   'gen-sem': () => { S.bulk('semanas', L.generarSemanas(CFG.ANIO || new Date().getFullYear())); toast('Semanas lectivas generadas', 'ok'); }
 };
+Object.assign(A, P.ACCIONES);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   if (el.dataset.a === 'cerrar-ovl' && e.target !== el) return; // clic dentro de la ventana: dejar funcionar casillas, opciones y enlaces
@@ -505,6 +509,7 @@ document.addEventListener('change', e => {
   const el = e.target, c = el.dataset && el.dataset.c;
   if (c === 'sem') { const w = L.semanaDe(lunes()); if (w && ed()) { const { num, ...row } = w; put('semanas', { ...row, [el.dataset.k]: el.value.trim() }); toast('Guardado', 'ok'); } }
   else if (c === 'func') { ui.func = el.value; pedir(); }
+  else if (P.cambioPlan(el)) pedir();
   else if (c === 'ev-sec') { const e = get('eventos', el.dataset.id); if (e && ed()) { put('eventos', { ...e, seccion: el.value }); toast('Movido a ' + L.SECCIONES[el.value].toLowerCase(), 'ok'); } }
   else if (c === 'import') { const file = el.files[0]; if (!file) return; if (file.size > 15e6) return toast('Archivo demasiado grande', 'err'); toast('Importando…'); importarArchivo(file).then(m => { toast(m, 'ok'); pedir(); }).catch(err => toast(err.message || 'No se pudo importar', 'err')); el.value = ''; }
   if (el.closest('[data-form=ev]')) avisoColision(); if (el.closest('[data-form=aus]')) previaAusencia();

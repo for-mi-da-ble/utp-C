@@ -114,6 +114,28 @@ Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementacione
 - **Espacios:** por edificio, con capacidad, encargado, ocupación por bloque y aviso de choques al reservar.
 - **Ajustes:** CRUD de funcionarios, cursos, espacios, matriz fija y semanas lectivas; cargar/descargar la base unificada.
 
+## Planeación (carta Gantt UTP)
+
+Pestaña **Planeación** (`#plan`): proyectos agrupados por área del PME (Gestión Pedagógica, Liderazgo, Convivencia,
+Gestión de Recursos) y sus tareas como barras sobre las **semanas de clases** (los recesos no cuentan).
+
+- **Datos:** hojas `10_Proyectos` y `11_Tareas` del libro unificado (tablas `proyectos` y `tareas` en la planilla).
+  Una tarea va de `inicio` a `fin` (AAAA-MM-DD); con `hito = SI` es un día clave y se dibuja como rombo.
+  `estado` = PENDIENTE, EN_CURSO o HECHA. `duracion_min` y `agendada` sirven para reservar tiempo en el calendario.
+  `evento_id` la liga a un evento del calendario.
+- **Hitos del calendario:** la franja superior cuenta, por semana, los eventos de UTP marcados como *Nota especial*
+  (plazos, cierres). No hay que copiarlos a la Gantt.
+- **Filtros:** año, semestre, área y responsable. Arriba, las tareas de las próximas 3 semanas (en rojo las atrasadas).
+- **Años sin semanas cargadas** (p. ej. 2027 antes del calendario oficial) usan un año base provisional y lo avisan.
+- **Permisos:** `admin` y `editor` crean y editan; `lector` (p. ej. el resto del equipo directivo) solo ve.
+- **Privacidad:** esta base la ve el equipo directivo. Las notas privadas no van aquí.
+
+**Escrituras desde fuera de la app.** Si otra herramienta escribe en la planilla por la API de Google Sheets (por ejemplo
+un asistente que agrega tareas o marca una como agendada), debe dejar **vacía la columna `_rev`** de cada fila nueva o
+modificada. Cada 5 minutos, `sellarExternos()` les asigna una revisión y la app las recibe en su próxima sincronización.
+`instalar()` crea ese disparador. En una planilla ya instalada, ejecuta `instalar()` una vez más: crea las hojas
+nuevas y el disparador sin tocar los datos.
+
 ## Límites y pendientes conocidos
 
 - El backend se probó con un simulador local de Apps Script (`tests/`), **no** contra un despliegue real de Google: haz una
