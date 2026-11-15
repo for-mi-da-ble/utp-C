@@ -162,6 +162,7 @@ python3 -m http.server 8765 &            # app en modo local
 node tests/mock-backend.js &             # simulador de Apps Script en :8766
 node tests/features.test.js BD.xlsx /tmp # arrastre, importación, choques, base unificada (BD = planilla original BD_AppSheet)
 node tests/sync.test.js BD.xlsx          # multiusuario, roles y seguridad
+node tests/plan.test.js Base_Unificada.xlsx  # Planeación: carga, roles y cambios externos (requiere el simulador)
 node tests/semana.test.js Base_Unificada.xlsx /tmp  # modo edición, cumpleaños y PDF
 node tests/calendario.test.js Base_Unificada.xlsx /tmp  # mensual, formulario, repetidos y PDF de 1 hoja (44 semanas)
 ```
