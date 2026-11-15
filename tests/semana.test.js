@@ -26,7 +26,7 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   await p.click('[data-a=det-add][data-t=sub]'); await p.locator('.drow.dsubrow input').last().fill('1° Ciclo');
   await p.click('[data-a=det-add][data-t=item]'); const r2 = p.locator('.drow:not(.dsubrow)').last(); await r2.locator('[data-f=hora]').fill('11:30'); await r2.locator('[data-f=curso]').fill('4° Básico B'); await r2.locator('[data-f=lugar]').fill('Biblioteca');
   await p.click('[data-a=guardar]'); await p.waitForTimeout(150);
-  const fe = (await evs()).find(e => e.titulo === 'Feria científica'); assert.equal(fe.detalle, '== E. Media\n10:00 | 3° Medio A | Presentación | Gimnasio\n== 1° Ciclo\n11:30 | 4° Básico B |  | Biblioteca', fe.detalle);
+  const fe = (await evs()).find(e => e.titulo === 'Feria científica'); assert.equal(fe.detalle, '## E. Media\n10:00 | 3° Medio A | Presentación | Gimnasio\n## 1° Ciclo\n11:30 | 4° Básico B |  | Biblioteca', fe.detalle);
   const bfe = p.locator('.ev', { hasText: 'Feria científica' }); assert.equal(await bfe.locator('.dsub').count(), 2); const its = await bfe.locator('.dit').allTextContents(); assert.deepEqual(its, ['10:00 3° Medio A · Presentación (Gimnasio)', '11:30 4° Básico B (Biblioteca)'], its.join('|'));
   console.log('✓ editor de detalle: subsecciones con línea punteada; lugar entre paréntesis →', its.join(' / '));
   await bfe.click(); await p.waitForSelector('.drow'); assert.equal(await p.locator('.drow').count(), 4, 'al reabrir se cargan las filas'); await p.keyboard.press('Escape');

@@ -9,13 +9,13 @@ const api = async (token, ops = [], since = 0) => (await fetch(U + '/exec', { me
     await p.addInitScript(t => { window.google = { accounts: { id: { initialize(o) { this.cb = o.callback; }, renderButton() { }, prompt() { this.cb({ credential: t }); }, disableAutoSelect() { } } } }; }, jwt(email)); // sustituye al botón de Google
     await p.clock.setFixedTime(new Date('2026-11-12T07:55:00')); // fecha fija: la prueba no depende del día en que se ejecute
     await p.goto(U + '/#config'); return p; };
-  const sincronizado = p => p.waitForFunction(() => /Sincronizado$/.test(document.querySelector('#sync').textContent.trim()), null, { timeout: 60000 });
+  const sincronizado = async p => { await p.waitForTimeout(300); await p.waitForFunction(() => /Sincronizado$/.test(document.querySelector('#sync').textContent.trim()) && JSON.parse(localStorage.getItem('sigutp:outbox') || '[]').length === 0, null, { timeout: 60000 }); };
   // 1. admin importa
   const A = await sesion('admin@colegio.test'); await sincronizado(A);
   await A.setInputFiles('input[type=file] >> nth=0', process.argv[2]); await A.waitForFunction(() => document.querySelector('#toast').textContent.includes('importada'), null, { timeout: 30000 });
   const t0 = Date.now(); await sincronizado(A); console.log('✓ admin importó y subió todo en', Date.now() - t0, 'ms');
-  const hoja = await (await fetch(U + '/__sheet')).json(); console.log('  filas en planilla: bloques', hoja.bloques.length - 1, 'funcionarios', hoja.funcionarios.length - 1, 'semanas', hoja.semanas.length - 1);
-  assert(hoja.bloques.length > 3000 && hoja.semanas.length > 40); assert(!JSON.stringify(hoja.funcionarios).match(/\d{1,2}\.\d{3}\.\d{3}-[\dkK]/), 'no debe haber RUT');
+  const hoja = await (await fetch(U + '/__sheet')).json(); console.log('  filas en planilla: bloques', hoja['08_Bloques_Docentes'].length - 1, 'funcionarios', hoja['04_Funcionarios'].length - 1, 'semanas', hoja['01_Semanas_Clases'].length - 1);
+  assert(hoja['08_Bloques_Docentes'].length > 3000 && hoja['01_Semanas_Clases'].length > 40); assert(!JSON.stringify(hoja['04_Funcionarios']).match(/\d{1,2}\.\d{3}\.\d{3}-[\dkK]/), 'no debe haber RUT');
   // 2. editor recibe datos y registra ausencia
   const B = await sesion('editor@colegio.test'); await sincronizado(B); await B.goto(U + '/#hoy');
   await B.waitForSelector('[data-a=nueva-aus]'); await B.click('[data-a=nueva-aus]'); const docente = await B.evaluate((() => { const b = JSON.parse(localStorage.getItem('sigutp:t:bloques')), f = JSON.parse(localStorage.getItem('sigutp:t:funcionarios')), c = {}; for (const x of b) if (x.tipo === 'CLASE' && +x.dia === 4 && x.func_id) c[x.func_id] = (c[x.func_id] || 0) + 1; const id = Object.keys(c).sort((a, z) => c[z] - c[a])[0]; return f.find(x => x.id === id).nombre; })); await B.fill('#f_nombre', docente); await B.fill('#f_fecha', '2026-11-12'); await B.click('[data-a=guardar]');
@@ -35,12 +35,15 @@ const api = async (token, ops = [], since = 0) => (await fetch(U + '/exec', { me
   await r('tabla inexistente (usuarios)', api(jwt('admin@colegio.test'), [{ t: 'usuarios', id: 'a', row: { email: 'intruso@gmail.com', rol: 'admin' } }]), 400);
   // 6. inyección de fórmulas y columnas desconocidas
   const j = await api(jwt('editor@colegio.test'), [{ t: 'eventos', id: 'EVF', row: { titulo: '=IMPORTXML("http://malo","//a")', fecha: '2026-11-13', jornada: 'MANANA', _rev: '999999', rol: 'admin' } }]); assert(j.ok);
-  const h2 = await (await fetch(U + '/__sheet')).json(); const fila = h2.eventos.find(x => x[0] === 'EVF'); assert(fila, 'fila escrita'); assert(Number(fila[h2.eventos[0].indexOf('_rev')]) < 999999, '_rev lo fija el servidor');
+  const h2 = await (await fetch(U + '/__sheet')).json(); const fila = h2['02_Eventos_Calendario'].find(x => x[0] === 'EVF'); assert(fila, 'fila escrita'); assert(Number(fila[h2['02_Eventos_Calendario'][0].indexOf('_rev')]) < 999999, '_rev lo fija el servidor');
   await api(jwt('editor@colegio.test'), [{ t: 'eventos', id: 'EV2', row: { titulo: 'normal', fecha: '2026-11-13', jornada: 'TARDE' } }]); // reescribe la hoja: el simulador lanza error si una fórmula quedara sin sanear
   console.log('✓ fórmulas neutralizadas y metadatos controlados por el servidor');
   // 7. XSS: el título malicioso llega a otro cliente y se muestra como texto
   await api(jwt('editor@colegio.test'), [{ t: 'eventos', id: 'EVX', row: { titulo: '<img src=x onerror="window.__xss=1">', fecha: '2026-11-12', jornada: 'MANANA', area: 'UTP' } }]);
   await A.goto(U + '/#config'); await A.click('[data-a=sync]'); await sincronizado(A); await A.goto(U + '/#hoy'); await A.click('[data-a=fecha-hoy]'); await A.waitForSelector('.ev'); await A.waitForTimeout(300);
   assert.equal(await A.evaluate(() => window.__xss), undefined); assert((await A.textContent('#view')).includes('<img src=x')); console.log('✓ XSS: contenido de otros usuarios se muestra escapado');
+  // 8. cambio hecho directamente en la Hoja (a mano o desde otra herramienta): la app lo descarga sola
+  await fetch(U + '/__externo'); await A.goto(U + '/#config'); await A.click('[data-a=sync]'); await A.waitForFunction(() => (localStorage.getItem('sigutp:t:eventos') || '').includes('Agregado directo en la Hoja'), null, { timeout: 30000 });
+  console.log('✓ edición directa en la Hoja: la app detecta el cambio y descarga todo');
   await b.close(); console.log('\nTODO OK');
 })().catch(e => { console.error('FALLO:', e.message); process.exit(1); });

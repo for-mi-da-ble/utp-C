@@ -253,7 +253,8 @@ export function seccionDe(e) {
 
 // ---------- detalle con subsecciones ----------
 // Formato guardado en `detalle` (una línea por elemento, legible en Excel):
-//   == E. Media                         → subsección (se dibuja separada con línea punteada)
+//   ## E. Media                         → subsección (línea punteada). "== E. Media" también se acepta, pero en
+//                                          Google Sheets una celda que empieza con "=" se toma como fórmula.
 //   08:10 | 2° Medios | Acto | Gimnasio  → hora | curso | actividad | lugar (cualquiera puede ir vacío)
 //   08:00 Ingreso estudiantes            → forma simple: hora + actividad
 const RE_CICLO = /^(e\.?\s*media|ense[nñ]anza media|(1|2|primer|segundo)\s*[°ºª]?\s*ciclo|primer ciclo|segundo ciclo|p[aá]rvulos?|ed\.?\s*parvularia|educaci[oó]n parvularia|todos los ciclos|b[aá]sica)\b[\s:.-]*/i;
@@ -276,7 +277,7 @@ export function parseDetalle(texto) {
   return out;
 }
 export function serializarDetalle(items) {
-  return items.map(i => i.sub !== undefined ? (i.sub.trim() ? '== ' + i.sub.trim() : '') : (i.curso || i.lugar) ? [i.hora, i.curso, i.act, i.lugar].map(x => (x || '').trim()).join(' | ') : [i.hora, i.act].map(x => (x || '').trim()).filter(Boolean).join(' '))
+  return items.map(i => i.sub !== undefined ? (i.sub.trim() ? '## ' + i.sub.trim() : '') : (i.curso || i.lugar) ? [i.hora, i.curso, i.act, i.lugar].map(x => (x || '').trim()).join(' | ') : [i.hora, i.act].map(x => (x || '').trim()).filter(Boolean).join(' '))
     .filter(Boolean).join('\n');
 }
 /** Texto de un elemento: curso y actividad, con el lugar entre paréntesis después de lo último. */
