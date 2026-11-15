@@ -32,6 +32,8 @@ sheets.usuarios.appendRow(['editor@colegio.test', 'editor', '']); sheets.usuario
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   if (req.url === '/exec' && req.method === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', () => { const out = sandbox.doPost({ postData: { contents: b } }); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(out.t); }); return; }
+  if (req.url === '/__tarea-externa' && req.method === 'POST') { // tarea escrita por la API de Sheets (fuera de la app)
+    let b = ''; req.on('data', c => b += c); req.on('end', () => { const row = JSON.parse(b), h = sheets['11_Tareas']; h.d.push(h.d[0].map(k => String(row[k] ?? ''))); actualizado = Date.now() + 20000; res.end('ok'); }); return; }
   if (req.url.startsWith('/__externo')) { // simula una edición hecha directamente en la Hoja (fuera de la app)
     const h = sheets['02_Eventos_Calendario'], c = h.d[0], fila = c.map(k => ({ id: 'EXT-1', fecha: '2026-11-12', titulo: 'Agregado directo en la Hoja', mensual: 'SI', seccion: 'ESTUDIANTES', jornada: 'AMBAS', area: 'UTP' }[k] || ''));
     h.d.push(fila); actualizado = Date.now() + 20000; res.end('ok'); return; }

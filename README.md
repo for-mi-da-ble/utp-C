@@ -121,6 +121,26 @@ En `detalle`, las subsecciones se escriben `## E. Media` (una celda que empieza 
 - **Espacios:** por edificio, con capacidad, encargado, ocupación por bloque y aviso de choques al reservar.
 - **Ajustes:** CRUD de funcionarios, cursos, espacios, matriz fija y semanas lectivas; cargar/descargar la base unificada.
 
+## Planeación (en Hoy y carta Gantt)
+
+En **Hoy**, la tarjeta *Planeación de la semana* lista las tareas de la semana del día elegido (y las atrasadas), con un círculo para marcarlas hechas (con *Deshacer*) y el botón **Carta Gantt** (`#plan`), que muestra los proyectos agrupados por área del PME (Gestión Pedagógica, Liderazgo, Convivencia,
+Gestión de Recursos) y sus tareas como barras sobre las **semanas de clases** (los recesos no cuentan).
+
+- **Datos:** hojas `10_Proyectos` y `11_Tareas` del libro unificado (tablas `proyectos` y `tareas` en la planilla).
+  Una tarea va de `inicio` a `fin` (AAAA-MM-DD); con `hito = SI` es un día clave y se dibuja como rombo.
+  `estado` = PENDIENTE, EN_CURSO o HECHA. `duracion_min` y `agendada` sirven para reservar tiempo en el calendario.
+  `evento_id` la liga a un evento del calendario.
+- **Hitos del calendario:** la franja superior cuenta, por semana, los eventos de UTP marcados como *Nota especial*
+  (plazos, cierres). No hay que copiarlos a la Gantt.
+- **Filtros:** año, semestre, área y responsable (el responsable elegido también filtra la tarjeta de Hoy).
+- **Años sin semanas cargadas** (p. ej. 2027 antes del calendario oficial) usan un año base provisional y lo avisan.
+- **Permisos:** `admin` y `editor` crean y editan; `lector` (p. ej. el resto del equipo directivo) solo ve.
+- **Privacidad:** esta base la ve el equipo directivo. Las notas privadas no van aquí.
+
+Las tareas se pueden agregar o cambiar también directamente en la Hoja (a mano o con otra herramienta): la app detecta el
+cambio y descarga todo, como con las demás pestañas. En una Hoja ya instalada, ejecuta `instalar()` una vez más para crear
+las pestañas `10_Proyectos` y `11_Tareas`.
+
 ## Límites y pendientes conocidos
 
 - El backend se probó con un simulador local de Apps Script (`tests/`), **no** contra un despliegue real de Google: haz una
@@ -147,6 +167,7 @@ python3 -m http.server 8765 &            # app en modo local
 node tests/mock-backend.js &             # simulador de Apps Script en :8766
 node tests/features.test.js BD.xlsx /tmp # arrastre, importación, choques, base unificada (BD = planilla original BD_AppSheet)
 node tests/sync.test.js BD.xlsx          # multiusuario, roles y seguridad
+node tests/plan.test.js Base_Unificada.xlsx  # Planeación: carga, roles y cambios externos (requiere el simulador)
 node tests/semana.test.js Base_Unificada.xlsx /tmp  # modo edición, cumpleaños y PDF
 node tests/calendario.test.js Base_Unificada.xlsx /tmp  # mensual, formulario, repetidos y PDF de 1 hoja (44 semanas)
 ```

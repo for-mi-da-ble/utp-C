@@ -9,7 +9,8 @@
  */
 // Pestaña de la Hoja para cada tabla (mismos nombres que la base unificada .xlsx).
 var HOJAS = { semanas: '01_Semanas_Clases', eventos: '02_Eventos_Calendario', ausencias: '03_Ausencias_Reemplazos', funcionarios: '04_Funcionarios',
-  espacios: '05_Espacios_Edificios', cursos: '06_Cursos', matriz: '07_Matriz_Fija_Semanal', bloques: '08_Bloques_Docentes', cumpleanos: '09_Cumpleanos' };
+  espacios: '05_Espacios_Edificios', cursos: '06_Cursos', matriz: '07_Matriz_Fija_Semanal', bloques: '08_Bloques_Docentes', cumpleanos: '09_Cumpleanos',
+  proyectos: '10_Proyectos', tareas: '11_Tareas' };
 var MARGEN_EXTERNO = 10000; // ms: diferencia mínima para considerar que alguien editó la hoja fuera de la app
 var TABLAS = {
   semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta'],
@@ -20,7 +21,9 @@ var TABLAS = {
   espacios: ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado'],
   bloques: ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id'],
   matriz: ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes'],
-  cumpleanos: ['id', 'nombre', 'dia', 'mes']
+  cumpleanos: ['id', 'nombre', 'dia', 'mes'],
+  proyectos: ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden'],
+  tareas: ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']
 };
 var META = ['_rev', '_del', '_por'];
 var SOLO_ADMIN = { funcionarios: 1, cursos: 1, espacios: 1, bloques: 1, matriz: 1, semanas: 1 };

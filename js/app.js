@@ -2,6 +2,7 @@ import * as S from './store.js';
 import * as L from './logic.js';
 import { esc, $, ic, toast, modal, cerrarModal, campos, leerForm, initDrag, copiar } from './ui.js';
 import { importarArchivo, exportarLibro } from './io.js';
+import * as P from './plan.js';
 
 const CFG = window.SIG_CONFIG || {};
 const { all, get, put, del } = S;
@@ -20,15 +21,15 @@ function render(fondo) {
   const a = document.activeElement; // una actualización de fondo (sincronización) no debe pisar lo que se está escribiendo en línea
   if (fondo === true && a && a.closest && a.closest('#view') && a.dataset.inline) { pendFondo = true; return; }
   pendFondo = false;
-  $('#nav').innerHTML = VISTAS.map(([k, n]) => `<a href="#${k}" class="pill ${ui.view === k ? 'on' : ''}">${n}</a>`).join('');
-  $('#bnav').innerHTML = VISTAS.concat([['config', 'Ajustes', 'gear']]).map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
+  $('#nav').innerHTML = VISTAS.map(([k, n]) => `<a href="#${k}" class="pill ${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${n}</a>`).join('');
+  $('#bnav').innerHTML = VISTAS.concat([['config', 'Ajustes', 'gear']]).map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
   const e = S.estado, pend = S.pendientes();
   const st = { local: ['Modo local', 'gray'], ok: ['Sincronizado', 'green'], sincronizando: ['Sincronizando…', 'blue'], pendiente: ['Conectando…', 'blue'], offline: ['Sin conexión', 'amber'], error: ['Error de sincronización', 'pink'], sesion: ['Inicia sesión', 'amber'] }[e.sync];
   $('#sync').innerHTML = `<span class="dot ${st[1]}"></span><span class="lbl">${st[0]}${pend && S.nube ? ` · ${pend}` : ''}</span>`;
   $('#sync').title = e.error || (e.email ? e.email + ' · ' + e.rol : '');
   const v = $('#view'), y = window.scrollY;
   if (!all('funcionarios').length && ui.view !== 'config') v.innerHTML = vacio();
-  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHor, espacios: vEsp, config: vCfg }[ui.view] || vHoy)();
+  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHor, espacios: vEsp, plan: () => P.vPlan(head), config: vCfg }[ui.view] || vHoy)();
   window.scrollTo(0, y);
   $('#login').hidden = !(S.nube && !S.sesionValida() && !S.estado.rol);
   $('#banner').innerHTML = S.nube && !S.sesionValida() && S.estado.rol ? `<div class="banner">${ic('alert')} Sesión expirada: ves la copia guardada en este dispositivo. <button class="btn sm" data-a="relogin">Iniciar sesión</button></div>` : (e.sync === 'error' && e.error ? `<div class="banner pink">${ic('alert')} ${esc(e.error)}</div>` : '');
@@ -64,6 +65,7 @@ function vHoy() {
       <div class="card kpi"><div class="kh"><span class="avatar ${sin ? 'amber' : 'green'}">${ic(sin ? 'alert' : 'check')}</span><span>Bloques<br>sin cubrir</span></div><div class="big">${sin}<sup class="${sin ? 'dn' : 'up'}">${r.cubiertos}/${r.afectados} cubiertos</sup></div><div class="bar"><i class="${sin ? 'pink' : 'green'}" style="width:${Math.round(p * 100)}%"></i></div></div>
       <div class="card kpi"><div class="kh"><span class="avatar blue">${ic('cal')}</span><span>Semana<br>de clases</span><a class="ibtn" href="#semana" aria-label="Ver semana">${ic('arrow')}</a></div><div class="big">${w && w.num ? w.num : '—'}<sup>${w ? `Semestre ${esc(w.semestre)}` : ''}</sup></div><div class="kf">${r.eventos.length} actividad${r.eventos.length === 1 ? '' : 'es'} hoy${L.cumplesEntre(f, f).length ? ' · 🎂 ' + L.cumplesEntre(f, f).length + ' cumpleaños' : ''}</div></div>
     </div>
+    ${P.bloqueHoy(f)}
     <div class="grid2w">
       <div class="card"><div class="ch"><h3>Ausencias y cobertura</h3>${r.afectados ? `<div class="dmini">${donut(p, sin ? 'var(--pink)' : 'var(--green)')}<b>${Math.round(p * 100)}%</b></div>` : ''}</div>
         ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>Sin ausencias registradas para este día.</p></div>`}</div>
@@ -431,6 +433,7 @@ function guardar(f) {
     put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: id || S.uid('AU') });
     ui.fecha = o.fecha; if (!id) location.hash = '#hoy';
   }
+  else if (f === 'pry' || f === 'tar') { if (!P.guardarPlan(f, o, id)) return; }
   else if (f === 'cum') { o.dia = +o.dia; o.mes = +o.mes; if (!(o.dia >= 1 && o.dia <= 31)) return toast('El día debe estar entre 1 y 31', 'err'); const fu = funcPorNombre(o.nombre); put('cumpleanos', { ...o, nombre: fu ? fu.nombre : o.nombre, id: id || S.uid('CU') }); }
   else if (f === 'blq') { if (!(L.tmin(o.fin) > L.tmin(o.ini))) return toast('La hora de término debe ser posterior al inicio', 'err'); put('bloques', { ...(get('bloques', id) || {}), ...o, dia: +o.dia, id: id || S.uid('B') }); }
   else if (f === 'crud') {
@@ -445,7 +448,8 @@ function guardar(f) {
 }
 function borrar(btn, f) {
   if (!btn.dataset.ok) { btn.dataset.ok = 1; btn.textContent = '¿Seguro? Toca de nuevo'; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.ok; btn.textContent = 'Eliminar'; } }, 3500); return; }
-  const form = $(`[data-form=${f}]`), t = { ev: 'eventos', aus: 'ausencias', blq: 'bloques', cum: 'cumpleanos', crud: form.dataset.t }[f];
+  const form = $(`[data-form=${f}]`), t = { ev: 'eventos', aus: 'ausencias', blq: 'bloques', cum: 'cumpleanos', pry: 'proyectos', tar: 'tareas', crud: form.dataset.t }[f];
+  if (!P.puedeBorrar(t, form.dataset.id)) return;
   if (t === 'funcionarios' && all('bloques').some(b => b.func_id === form.dataset.id)) return toast('Tiene bloques de horario asignados: reasígnalos antes de eliminar', 'err');
   if (t === 'cursos' && all('bloques').some(b => b.curso_id === form.dataset.id)) return toast('El curso tiene bloques de horario: no se puede eliminar', 'err');
   del(t, form.dataset.id); cerrarModal(); toast('Eliminado');
@@ -495,6 +499,7 @@ const A = {
   salir: el => { if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = '¿Seguro? Toca de nuevo'; return; } S.cerrarSesion(true); },
   'gen-sem': () => { S.bulk('semanas', L.generarSemanas(CFG.ANIO || new Date().getFullYear())); toast('Semanas lectivas generadas', 'ok'); }
 };
+Object.assign(A, P.ACCIONES);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   if (el.dataset.a === 'cerrar-ovl' && e.target !== el) return; // clic dentro de la ventana: dejar funcionar casillas, opciones y enlaces
@@ -505,6 +510,7 @@ document.addEventListener('change', e => {
   const el = e.target, c = el.dataset && el.dataset.c;
   if (c === 'sem') { const w = L.semanaDe(lunes()); if (w && ed()) { const { num, ...row } = w; put('semanas', { ...row, [el.dataset.k]: el.value.trim() }); toast('Guardado', 'ok'); } }
   else if (c === 'func') { ui.func = el.value; pedir(); }
+  else if (P.cambioPlan(el)) pedir();
   else if (c === 'ev-sec') { const e = get('eventos', el.dataset.id); if (e && ed()) { put('eventos', { ...e, seccion: el.value }); toast('Movido a ' + L.SECCIONES[el.value].toLowerCase(), 'ok'); } }
   else if (c === 'import') { const file = el.files[0]; if (!file) return; if (file.size > 15e6) return toast('Archivo demasiado grande', 'err'); toast('Importando…'); importarArchivo(file).then(m => { toast(m, 'ok'); pedir(); }).catch(err => toast(err.message || 'No se pudo importar', 'err')); el.value = ''; }
   if (el.closest('[data-form=ev]')) avisoColision(); if (el.closest('[data-form=aus]')) previaAusencia();
@@ -526,7 +532,7 @@ initDrag((src, dst) => {
 });
 
 // ============ arranque ============
-function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
+function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' || h === 'plan' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
 S.cargarLocal();
 if (S.puedeEditar()) {
   const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); // nombres de columnas anteriores

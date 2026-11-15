@@ -1,6 +1,6 @@
 // Almacén de datos: persistencia local inmediata (RF-5.3) + sincronización por filas con Google Sheets.
 const CFG = window.SIG_CONFIG || {};
-export const TABLES = ['semanas', 'eventos', 'ausencias', 'funcionarios', 'cursos', 'espacios', 'bloques', 'matriz', 'cumpleanos'];
+export const TABLES = ['semanas', 'eventos', 'ausencias', 'funcionarios', 'cursos', 'espacios', 'bloques', 'matriz', 'cumpleanos', 'proyectos', 'tareas'];
 export const nube = !!(CFG.API_URL && CFG.GOOGLE_CLIENT_ID);
 const K = 'sigutp:';
 const db = {}, idx = {};
