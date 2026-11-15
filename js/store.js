@@ -15,6 +15,8 @@ const ls = {
 export function cargarLocal() {
   for (const t of TABLES) { db[t] = ls.get('t:' + t, []); idx[t] = null; }
   outbox = ls.get('outbox', []); rev = ls.get('rev', 0);
+  // Primera conexión a la nube: manda la Hoja de Google. Lo acumulado en modo local no se sube (podría pisar datos más nuevos).
+  if (nube && !ls.get('nube-ok', false)) { outbox = []; rev = 0; ls.set('outbox', []); ls.set('rev', 0); ls.set('nube-ok', true); }
 }
 function index(t) { if (!idx[t]) { idx[t] = new Map(); for (const r of db[t]) idx[t].set(r.id, r); } return idx[t]; }
 function persist(t) { ls.set('t:' + t, db[t]); }
@@ -78,7 +80,9 @@ export async function sincronizar() {
   if (!navigator.onLine) { estado.sync = 'offline'; emit(); return; }
   syncing = true; estado.sync = 'sincronizando'; emit();
   try {
+    let otra = false;
     do {
+      otra = false;
       const lote = outbox.slice(0, 1200);
       // text/plain evita el preflight CORS que Apps Script no responde.
       const res = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, since: rev, ops: lote }), redirect: 'follow' });
@@ -99,11 +103,16 @@ export async function sincronizar() {
         persist(t);
       }
       rev = j.rev; ls.set('rev', rev); estado.rol = j.role; ls.set('rol', j.role); estado.email = j.email || estado.email;
-    } while (outbox.length);
+      // la Hoja se editó fuera de la app (a mano o con otra herramienta): se descarga todo de nuevo
+      const ext = String(j.externo == null ? '' : j.externo);
+      if (ext && ext !== ls.get('externo', '')) { ls.set('externo', ext); if (!completo) { rev = 0; ls.set('rev', 0); otra = true; } }
+    } while (outbox.length || otra);
     estado.sync = 'ok'; estado.error = ''; estado.ultima = Date.now();
   } catch (e) { estado.sync = navigator.onLine ? 'error' : 'offline'; estado.error = 'Sin conexión con la nube. Los cambios quedan guardados en este dispositivo.'; }
   finally { syncing = false; emit(); if (nube) { clearTimeout(timer); timer = setTimeout(sincronizar, outbox.length ? 5000 : 40000); } }
 }
+/** Descarga completa desde la nube (lo pendiente de subir se conserva y se envía). */
+export function recargarTodo() { rev = 0; ls.set('rev', 0); return sincronizar(); }
 if (nube) {
   window.addEventListener('online', () => sincronizar());
   document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - estado.ultima > 15000) sincronizar(); });

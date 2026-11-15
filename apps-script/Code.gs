@@ -2,8 +2,16 @@
  * SIG-UTP · Backend en Google Apps Script sobre una Google Sheet.
  * Seguridad: cada petición trae un ID token de Google; se verifica firma/audiencia con Google
  * y el correo debe estar en la hoja `usuarios` (rol admin | editor | lector).
+ * La base de datos es la misma Hoja de Google "SIG-UTP Base de datos" (pestañas 01_… a 09_…), así que se puede editar
+ * desde la app, a mano en la hoja o con otras herramientas: los cambios hechos fuera de la app se detectan por la
+ * fecha de modificación del archivo y las apps descargan todo de nuevo.
  * Instalación: ver README. Ejecuta `instalar()` una vez desde el editor.
  */
+// Pestaña de la Hoja para cada tabla (mismos nombres que la base unificada .xlsx).
+var HOJAS = { semanas: '01_Semanas_Clases', eventos: '02_Eventos_Calendario', ausencias: '03_Ausencias_Reemplazos', funcionarios: '04_Funcionarios',
+  espacios: '05_Espacios_Edificios', cursos: '06_Cursos', matriz: '07_Matriz_Fija_Semanal', bloques: '08_Bloques_Docentes', cumpleanos: '09_Cumpleanos',
+  proyectos: '10_Proyectos', tareas: '11_Tareas' };
+var MARGEN_EXTERNO = 10000; // ms: diferencia mínima para considerar que alguien editó la hoja fuera de la app
 var TABLAS = {
   semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta'],
   eventos: ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'especial', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen'],
@@ -21,58 +29,37 @@ var META = ['_rev', '_del', '_por'];
 var SOLO_ADMIN = { funcionarios: 1, cursos: 1, espacios: 1, bloques: 1, matriz: 1, semanas: 1 };
 var MAX_OPS = 1500, MAX_CELDA = 4000;
 
-/** Ejecutar UNA vez: crea las hojas y te registra como administrador. */
+/** Ejecutar UNA vez: prepara las pestañas (agrega columnas de control) y te registra como administrador. */
 function instalar() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  Object.keys(TABLAS).forEach(function (t) { hoja_(ss, t, TABLAS[t].concat(META)); });
-  var u = hoja_(ss, 'usuarios', ['email', 'rol', 'nombre']);
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), p = PropertiesService.getScriptProperties(), rev = Math.max(1, Number(p.getProperty('REV')) || 0);
+  Object.keys(TABLAS).forEach(function (t) {
+    var sh = hoja_(ss, HOJAS[t], TABLAS[t].concat(META)), vals = sh.getDataRange().getDisplayValues(), cr = vals[0].indexOf('_rev');
+    var marcas = [], hay = false; // filas que vienen de la base unificada: quedan como ya sincronizadas
+    for (var r = 1; r < vals.length; r++) { var v = vals[r][cr]; if (!v && vals[r][0]) hay = true; marcas.push([v || (vals[r][0] ? String(rev) : '')]); }
+    if (hay) sh.getRange(2, cr + 1, marcas.length, 1).setNumberFormat('@').setValues(marcas);
+  });
+  var u = ss.getSheetByName('usuarios') || hoja_(ss, 'usuarios', ['email', 'rol', 'nombre']);
   if (u.getLastRow() < 2) u.appendRow([Session.getEffectiveUser().getEmail().toLowerCase(), 'admin', 'Administrador/a']);
-  var p = PropertiesService.getScriptProperties();
-  if (!p.getProperty('REV')) p.setProperty('REV', '0');
+  p.setProperty('REV', String(rev));
+  if (!p.getProperty('EXTERNO')) p.setProperty('EXTERNO', '1');
   if (!p.getProperty('GOOGLE_CLIENT_ID')) p.setProperty('GOOGLE_CLIENT_ID', 'PEGA_AQUI_TU_CLIENT_ID');
-  instalarDisparadores();
+  SpreadsheetApp.flush(); p.setProperty('ULTIMA', String(Date.now()));
 }
-
-/** Crea (una sola vez) el disparador que sella cada 5 minutos los cambios hechos fuera de la app. Se puede ejecutar de nuevo sin duplicarlo. */
-function instalarDisparadores() {
-  var ya = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sellarExternos'; });
-  if (!ya) ScriptApp.newTrigger('sellarExternos').timeBased().everyMinutes(5).create();
-}
-
-/**
- * Cambios externos: quien escriba en la planilla por la API de Google Sheets (por ejemplo un asistente que agrega
- * tareas o marca una como agendada) no dispara onEdit, así que la app no se enteraría. Regla: al escribir desde fuera
- * se deja VACÍA la columna _rev de la fila nueva o modificada. Esta función les asigna una revisión nueva y las
- * marca como `externo`, de modo que todas las copias de la app las reciben en su próxima sincronización.
- */
-function sellarExternos() {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(20000)) return;
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet(), props = PropertiesService.getScriptProperties();
-    var rev = Number(props.getProperty('REV')) || 0, nuevas = {}, hubo = false;
-    Object.keys(TABLAS).forEach(function (t) {
-      var sh = ss.getSheetByName(t); if (!sh || sh.getLastRow() < 2) return;
-      var vals = sh.getDataRange().getDisplayValues(), head = vals[0], cId = head.indexOf('id'), cr = head.indexOf('_rev'), cp = head.indexOf('_por');
-      if (cr < 0 || cId < 0) return;
-      var filas = [];
-      for (var r = 1; r < vals.length; r++) if (vals[r][cId] && !vals[r][cr]) filas.push(r);
-      if (!filas.length) return;
-      if (!hubo) { rev++; hubo = true; }
-      filas.forEach(function (r) {
-        sh.getRange(r + 1, cr + 1).setValue(String(rev));
-        if (cp >= 0) sh.getRange(r + 1, cp + 1).setValue('externo');
-      });
-      nuevas['REV_' + t] = String(rev);
-    });
-    if (hubo) { nuevas.REV = String(rev); props.setProperties(nuevas); }
-  } finally { lock.releaseLock(); }
-}
+/** Pestaña con encabezados: si existe, agrega al final las columnas que falten (no toca las que ya están). */
 function hoja_(ss, nombre, cols) {
   var sh = ss.getSheetByName(nombre) || ss.insertSheet(nombre);
   if (sh.getLastRow() === 0) { sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold'); sh.setFrozenRows(1); }
+  else {
+    var head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getDisplayValues()[0], faltan = cols.filter(function (c) { return head.indexOf(c) < 0; });
+    if (faltan.length) { if (sh.getMaxColumns() < head.length + faltan.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length + faltan.length - sh.getMaxColumns()); sh.getRange(1, head.length + 1, 1, faltan.length).setValues([faltan]).setFontWeight('bold'); }
+  }
   sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@'); // todo como texto: evita fórmulas inyectadas
   return sh;
+}
+/** ¿Alguien modificó la Hoja fuera de la app (a mano o con otra herramienta) desde la última escritura del backend? */
+function cambioExterno_(ss, props) {
+  try { return DriveApp.getFileById(ss.getId()).getLastUpdated().getTime() > (Number(props.getProperty('ULTIMA')) || 0) + MARGEN_EXTERNO; }
+  catch (e) { return false; }
 }
 
 function doGet() { return json_({ ok: true, servicio: 'SIG-UTP' }); }
@@ -102,9 +89,12 @@ function doPost(e) {
 
 function sincronizar_(ops, since, u) {
   var props = PropertiesService.getScriptProperties();
-  var all = props.getProperties();
-  var rev = Number(all.REV) || 0;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (cambioExterno_(ss, props)) { // edición fuera de la app: se avisa a todas las apps con un nuevo número EXTERNO
+    props.setProperties({ EXTERNO: String((Number(props.getProperty('EXTERNO')) || 0) + 1), ULTIMA: String(Date.now()) });
+  }
+  var all = props.getProperties();
+  var rev = Number(all.REV) || 0, desde = since > 0 ? since : -1; // descarga completa: incluye filas escritas a mano (sin _rev)
   var porTabla = {};
   ops.forEach(function (o) { (porTabla[o.t] = porTabla[o.t] || []).push(o); });
   var nuevas = {};
@@ -112,8 +102,9 @@ function sincronizar_(ops, since, u) {
   var changes = {};
   Object.keys(TABLAS).forEach(function (t) {
     var tocada = porTabla[t], trev = Number(all['REV_' + t]) || 0;
-    if (!tocada && trev <= since) return; // sin novedades: no se lee la hoja
-    var sh = ss.getSheetByName(t);
+    if (!tocada && trev <= since && since > 0) return; // sin novedades: no se lee la hoja
+    var sh = ss.getSheetByName(HOJAS[t]);
+    if (!sh) return;
     var vals = sh.getDataRange().getDisplayValues();
     var head = vals[0], col = {};
     head.forEach(function (h, i) { col[h] = i; });
@@ -139,7 +130,7 @@ function sincronizar_(ops, since, u) {
     var out = [];
     for (var k = 1; k < vals.length; k++) {
       var rr = Number(vals[k][col._rev]) || 0;
-      if (rr <= since || !vals[k][col.id]) continue;
+      if (rr <= desde || !vals[k][col.id]) continue;
       var obj = {};
       TABLAS[t].forEach(function (c) { var v = vals[k][col[c]]; if (v !== '' && v != null) obj[c] = v.charAt(0) === "'" ? v.slice(1) : v; });
       if (vals[k][col._del]) { if (since === 0) continue; obj._del = 1; }
@@ -147,8 +138,8 @@ function sincronizar_(ops, since, u) {
     }
     if (out.length) changes[t] = out;
   });
-  if (ops.length) { nuevas.REV = String(rev); props.setProperties(nuevas); }
-  return { ok: true, rev: rev, role: u.role, email: u.email, changes: changes };
+  if (ops.length) { SpreadsheetApp.flush(); nuevas.REV = String(rev); nuevas.ULTIMA = String(Date.now()); props.setProperties(nuevas); }
+  return { ok: true, rev: rev, externo: Number(all.EXTERNO) || 0, role: u.role, email: u.email, changes: changes };
 }
 
 /** Texto plano acotado; neutraliza valores que Sheets interpretaría como fórmula. */
@@ -189,35 +180,11 @@ function rol_(email) {
   return r;
 }
 
-/**
- * Ediciones manuales en la planilla: marca la fila para que las apps la descarguen.
- * (Edita una fila a la vez; no cambies la columna `id`.)
- */
-function onEdit(e) {
-  var sh = e.range.getSheet(), t = sh.getName();
-  if (!TABLAS[t] || e.range.getRow() < 2) return;
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return;
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var rev = (Number(props.getProperty('REV')) || 0) + 1;
-    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
-    var cr = head.indexOf('_rev') + 1, cp = head.indexOf('_por') + 1;
-    if (!cr) return;
-    var n = e.range.getNumRows(), revs = [], por = [];
-    for (var i = 0; i < n; i++) { revs.push([String(rev)]); por.push(['planilla']); }
-    sh.getRange(e.range.getRow(), cr, n, 1).setValues(revs);
-    if (cp) sh.getRange(e.range.getRow(), cp, n, 1).setValues(por);
-    var o = { REV: String(rev) }; o['REV_' + t] = String(rev);
-    props.setProperties(o);
-  } finally { lock.releaseLock(); }
-}
-
 /** Mantenimiento opcional: elimina físicamente las filas borradas (ejecutar a fin de semestre). */
 function purgarEliminados() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(TABLAS).forEach(function (t) {
-    var sh = ss.getSheetByName(t), vals = sh.getDataRange().getDisplayValues(), d = vals[0].indexOf('_del');
+    var sh = ss.getSheetByName(HOJAS[t]), vals = sh.getDataRange().getDisplayValues(), d = vals[0].indexOf('_del');
     for (var r = vals.length - 1; r >= 1; r--) if (vals[r][d]) sh.deleteRow(r + 1);
   });
 }

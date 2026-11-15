@@ -42,27 +42,34 @@ python3 -m http.server 8765
 Abre `http://localhost:8765`, ve a **Ajustes → Cargar base unificada** y elige el libro unificado.
 En modo local los datos quedan solo en ese navegador.
 
-## Puesta en marcha con varios usuarios (≈20 minutos)
+## Puesta en marcha con varios usuarios (base en Google Drive)
 
-1. **Planilla.** Crea una Google Sheet vacía (p. ej. "SIG-UTP Base de datos"). *Extensiones → Apps Script*, borra el contenido,
-   pega `apps-script/Code.gs`, guarda, elige la función `instalar` y pulsa **Ejecutar** (acepta los permisos).
-   Se crean las hojas y quedas como `admin` en la hoja `usuarios`.
-2. **ID de cliente Google.** En <https://console.cloud.google.com> crea un proyecto → *APIs y servicios → Credenciales →
-   Crear credenciales → ID de cliente de OAuth → Aplicación web*. En **Orígenes autorizados de JavaScript** agrega
-   `https://TU-USUARIO.github.io`. Copia el ID (termina en `.apps.googleusercontent.com`).
-   Si pide configurar la pantalla de consentimiento: tipo *Interno* si usan Google Workspace.
+La base vive en una **Hoja de cálculo de Google** con las mismas pestañas que la base unificada (`01_Semanas_Clases` …
+`09_Cumpleanos`). La app la lee y escribe a través de un Apps Script vinculado a esa Hoja; también se puede editar a
+mano o con otras herramientas: el backend detecta esos cambios (fecha de modificación del archivo) y las apps descargan
+todo de nuevo. Siempre se puede descargar como .xlsx (*Archivo → Descargar*).
+
+1. **Hoja.** Abre la Hoja de la base (o súbela: *Nuevo → Subir archivo* con la base unificada .xlsx y luego
+   *Abrir con Hojas de cálculo de Google*). *Extensiones → Apps Script*, borra el contenido, pega `apps-script/Code.gs`,
+   guarda, elige `instalar` y pulsa **Ejecutar** (acepta los permisos). Agrega a cada pestaña las columnas de control
+   `_rev`, `_del`, `_por` (no las borres) y crea la pestaña `usuarios` contigo como `admin`.
+2. **ID de cliente Google.** En <https://console.cloud.google.com> crea un proyecto → *APIs y servicios → Pantalla de
+   consentimiento* tipo **Interno** (cuenta del colegio) → *Credenciales → Crear credenciales → ID de cliente de OAuth →
+   Aplicación web*. En **Orígenes autorizados de JavaScript** agrega `https://for-mi-da-ble.github.io`.
 3. **Conecta el script con ese ID.** En Apps Script: *Configuración del proyecto → Propiedades de la secuencia de comandos* →
    edita `GOOGLE_CLIENT_ID` y pega el ID.
 4. **Publica la API.** *Implementar → Nueva implementación → Aplicación web* · Ejecutar como: **Yo** · Quién tiene acceso:
-   **Cualquier usuario**. Copia la URL que termina en `/exec`.
-   ("Cualquier usuario" solo permite *llamar* a la API; sin un token válido de una cuenta autorizada responde error y no entrega datos.)
+   **Cualquier usuario**. Copia la URL que termina en `/exec`. ("Cualquier usuario" solo permite *llamar* a la API: sin un
+   token válido de una cuenta autorizada responde error y no entrega datos.) Si la administración de Google Workspace del
+   colegio no permite esa opción, hay que pedir que la habilite.
 5. **Configura la app.** Edita `config.js` con `API_URL` (la URL `/exec`) y `GOOGLE_CLIENT_ID`. No son secretos.
-6. **GitHub Pages.** Sube esta carpeta a un repositorio → *Settings → Pages → Deploy from a branch → main / (root)*.
-7. **Carga inicial.** Abre `https://TU-USUARIO.github.io/REPO/`, inicia sesión y en *Ajustes → Cargar base unificada*
-   elige `SIG-UTP_Base_Unificada_2026.xlsx`. Se sube completa a la planilla de Google.
-8. **Usuarios.** Agrega filas en la hoja `usuarios`: `correo | rol` (`admin`, `editor` o `lector`). Los cambios aplican en ≤2 minutos.
+6. **Usuarios.** Agrega filas en la pestaña `usuarios`: `correo | rol` (`admin`, `editor` o `lector`).
 
-Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementaciones → Editar → Versión nueva* (mantiene la misma URL).
+Al conectarse por primera vez, cada navegador **descarta lo que tenía en modo local** y descarga la Hoja (la Hoja manda).
+Si editaste en modo local algo que no está en la Hoja, descarga antes la base unificada desde *Ajustes*.
+Al cambiar `Code.gs` más adelante: *Implementar → Administrar implementaciones → Editar → Versión nueva* (misma URL).
+Edición a mano en la Hoja: no cambies la columna `id` ni borres `_rev`; una fila nueva necesita un `id` que no se repita.
+En `detalle`, las subsecciones se escriben `## E. Media` (una celda que empieza con `=` es una fórmula para Sheets).
 
 ## Uso diario
 
@@ -130,11 +137,9 @@ Gestión de Recursos) y sus tareas como barras sobre las **semanas de clases** (
 - **Permisos:** `admin` y `editor` crean y editan; `lector` (p. ej. el resto del equipo directivo) solo ve.
 - **Privacidad:** esta base la ve el equipo directivo. Las notas privadas no van aquí.
 
-**Escrituras desde fuera de la app.** Si otra herramienta escribe en la planilla por la API de Google Sheets (por ejemplo
-un asistente que agrega tareas o marca una como agendada), debe dejar **vacía la columna `_rev`** de cada fila nueva o
-modificada. Cada 5 minutos, `sellarExternos()` les asigna una revisión y la app las recibe en su próxima sincronización.
-`instalar()` crea ese disparador. En una planilla ya instalada, ejecuta `instalar()` una vez más: crea las hojas
-nuevas y el disparador sin tocar los datos.
+Las tareas se pueden agregar o cambiar también directamente en la Hoja (a mano o con otra herramienta): la app detecta el
+cambio y descarga todo, como con las demás pestañas. En una Hoja ya instalada, ejecuta `instalar()` una vez más para crear
+las pestañas `10_Proyectos` y `11_Tareas`.
 
 ## Límites y pendientes conocidos
 

@@ -12,7 +12,7 @@ const jwt = email => ['x', Buffer.from(JSON.stringify({ aud: CID, iss: 'https://
   const A = await sesion('admin@colegio.test'); await sincronizado(A);
   await A.setInputFiles('input[type=file] >> nth=0', process.argv[2]); await A.waitForFunction(() => document.querySelector('#toast').textContent.includes('cargada'), null, { timeout: 30000 });
   assert(/\d+ proyectos, \d+ tareas/.test(await A.textContent('#toast')), 'la base debe traer proyectos y tareas'); await sincronizado(A);
-  const hoja = await (await fetch(U + '/__sheet')).json(); assert(hoja.proyectos.length > 5 && hoja.tareas.length > 20, 'proyectos y tareas deben subir a la planilla'); console.log('✓ proyectos', hoja.proyectos.length - 1, 'y tareas', hoja.tareas.length - 1, 'en la planilla');
+  const hoja = await (await fetch(U + '/__sheet')).json(); const HP = hoja['10_Proyectos'], HT = hoja['11_Tareas']; assert(HP.length > 5 && HT.length > 20, 'proyectos y tareas deben subir a la planilla'); console.log('✓ proyectos', HP.length - 1, 'y tareas', HT.length - 1, 'en la planilla');
   await A.goto(U + '/#plan'); await A.waitForSelector('tr.gt'); const n0 = await A.locator('tr.gt').count(); assert(n0 > 10); console.log('✓ Gantt con', n0, 'tareas visibles');
   // Hoy: tareas de la semana con marcado rápido
   await A.goto(U + '/#hoy'); await A.waitForSelector('.card.prox .pitem'); const n1 = await A.locator('.card.prox .tick').count(); assert(n1 > 0, 'Hoy debe listar tareas de la semana');
@@ -21,13 +21,12 @@ const jwt = email => ['x', Buffer.from(JSON.stringify({ aud: CID, iss: 'https://
   // editor crea una tarea desde la app
   const E = await sesion('editor@colegio.test'); await sincronizado(E); await E.goto(U + '/#plan'); await E.waitForSelector('tr.gp');
   await E.locator('[data-a=plan-tar-n][data-p]').first().click(); await E.fill('#f_titulo', 'Tarea del editor'); await E.fill('#f_inicio', '2026-11-23'); await E.fill('#f_fin', '2026-11-27'); await E.click('[data-a=guardar]'); assert.equal(await E.textContent('#toast'), 'Guardado'); await E.waitForTimeout(1500); await sincronizado(E);
-  assert((await (await fetch(U + '/__sheet')).json()).tareas.some(r => r.includes('Tarea del editor'))); console.log('✓ el editor crea tareas y llegan a la planilla');
+  assert((await (await fetch(U + '/__sheet')).json())['11_Tareas'].some(r => r.includes('Tarea del editor'))); console.log('✓ el editor crea tareas y llegan a la planilla');
   // lector: sin botones de edición
   const C = await sesion('lector@colegio.test'); await sincronizado(C); await C.goto(U + '/#plan'); await C.waitForSelector('tr.gt'); assert.equal(await C.locator('[data-a=plan-tar-n]').count(), 0); console.log('✓ lector ve la Gantt sin poder editar');
-  // escritura externa (como la haría un asistente por la API de Sheets) → sellarExternos → llega a la app
-  await fetch(U + '/__externo', { method: 'POST', body: JSON.stringify({ t: 'tareas', row: { id: 'TA-EXT-1', proyecto_id: hoja.proyectos[1][0], titulo: 'Tarea escrita desde fuera', responsable: 'Esteban Aburto', inicio: '2026-11-24', fin: '2026-11-24', hito: 'NO', estado: 'PENDIENTE' } }) });
-  const s = await (await fetch(U + '/__sellar')).json(); assert(s.triggers.includes('sellarExternos'), 'instalar() debe crear el disparador');
+  // escritura externa (como la haría un asistente por la API de Sheets) → la app la detecta y descarga todo
+  await fetch(U + '/__tarea-externa', { method: 'POST', body: JSON.stringify({ id: 'TA-EXT-1', proyecto_id: HP[1][0], titulo: 'Tarea escrita desde fuera', responsable: 'Esteban Aburto', inicio: '2026-11-24', fin: '2026-11-24', hito: 'NO', estado: 'PENDIENTE' }) });
   await A.goto(U + '/#config'); await A.click('[data-a=sync]'); await A.waitForTimeout(800); await sincronizado(A); await A.goto(U + '/#plan'); await A.waitForSelector('tr.gt');
-  assert(await A.locator('text=Tarea escrita desde fuera').count() > 0, 'la tarea externa debe aparecer en la Gantt'); console.log('✓ cambio externo sellado y recibido por la app');
+  assert(await A.locator('text=Tarea escrita desde fuera').count() > 0, 'la tarea externa debe aparecer en la Gantt'); console.log('✓ tarea escrita fuera de la app recibida');
   assert.deepEqual(errs, []); console.log('\nTODO OK'); await b.close();
 })().catch(e => { console.error('FALLO:', e.message); process.exit(1); });
