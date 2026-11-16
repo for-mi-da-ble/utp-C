@@ -6,7 +6,7 @@ const { chromium } = require('playwright'); const assert = require('assert'); co
   let dialogs = 0; p.on('dialog', d => { dialogs++; d.dismiss(); });
   await p.clock.setFixedTime(new Date('2026-11-12T07:55:00')); await p.goto(U + '/#config');
   const imp = async (f, txt) => { await p.waitForTimeout(400); await p.evaluate(() => document.querySelector('#toast').textContent = ''); await p.setInputFiles('input[type=file] >> nth=0', f); await p.waitForFunction(t => document.querySelector('#toast').textContent.includes(t), txt, { timeout: 30000 }); return p.textContent('#toast'); };
-  await imp(bd, 'importada');
+  await imp(bd, 'cargada');
   // Calendario anual sintético en formato "humano": genera el archivo con SheetJS dentro del navegador
   const cal = path.join(tmp, 'Calendario Anual.xlsx');
   const b64 = await p.evaluate(() => { const X = window.XLSX, wb = X.utils.book_new();

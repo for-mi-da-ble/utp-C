@@ -12,7 +12,7 @@ const api = async (token, ops = [], since = 0) => (await fetch(U + '/exec', { me
   const sincronizado = async p => { await p.waitForTimeout(300); await p.waitForFunction(() => /Sincronizado$/.test(document.querySelector('#sync').textContent.trim()) && JSON.parse(localStorage.getItem('sigutp:outbox') || '[]').length === 0, null, { timeout: 60000 }); };
   // 1. admin importa
   const A = await sesion('admin@colegio.test'); await sincronizado(A);
-  await A.setInputFiles('input[type=file] >> nth=0', process.argv[2]); await A.waitForFunction(() => document.querySelector('#toast').textContent.includes('importada'), null, { timeout: 30000 });
+  await A.setInputFiles('input[type=file] >> nth=0', process.argv[2]); await A.waitForFunction(() => document.querySelector('#toast').textContent.match(/importada|cargada/), null, { timeout: 30000 });
   const t0 = Date.now(); await sincronizado(A); console.log('✓ admin importó y subió todo en', Date.now() - t0, 'ms');
   const hoja = await (await fetch(U + '/__sheet')).json(); console.log('  filas en planilla: bloques', hoja['08_Bloques_Docentes'].length - 1, 'funcionarios', hoja['04_Funcionarios'].length - 1, 'semanas', hoja['01_Semanas_Clases'].length - 1);
   assert(hoja['08_Bloques_Docentes'].length > 3000 && hoja['01_Semanas_Clases'].length > 40); assert(!JSON.stringify(hoja['04_Funcionarios']).match(/\d{1,2}\.\d{3}\.\d{3}-[\dkK]/), 'no debe haber RUT');

@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
   await p.clock.setFixedTime(new Date('2026-11-12T07:55:00'));
   await p.goto('http://localhost:8765/#config');
   await p.setInputFiles('input[type=file] >> nth=0', xlsx);
-  await p.waitForFunction(() => document.querySelector('#toast').textContent.includes('importada'), null, { timeout: 30000 });
+  await p.waitForFunction(() => document.querySelector('#toast').textContent.match(/importada|cargada/), null, { timeout: 30000 });
   console.log(await p.textContent('#toast'));
   const shot = async n => { await p.waitForTimeout(250); await p.screenshot({ path: `${out}/${n}.png`, fullPage: true }); };
   // ausencia
