@@ -339,7 +339,7 @@ function vCfg() {
       <div class="card"><h3>Agregar desde archivos originales</h3><p class="muted sm">Opcional. Para incorporar datos desde las planillas antiguas del colegio: base de horarios (BD_AppSheet), Calendario Anual (hojas por mes) o Calendario Semanal (hojas 01, 02…) o los listados de docentes y asistentes del Mineduc (.csv) para los cumpleaños. El formato se detecta solo y nada se duplica.</p>
         ${adm() ? `<label class="btn wide filebtn">${ic('plus')} Elegir archivo original<input type="file" accept=".xlsx,.xls,.csv" data-c="import" hidden></label>` : ''}</div>
       ${ed() ? `<div class="card"><h3>Limpieza del calendario</h3><p class="muted sm">${(n => n ? `<b>${n} evento${n === 1 ? '' : 's'}</b> aparece${n === 1 ? '' : 'n'} dos veces el mismo día: como hito del mensual y como actividad de la semana.` : 'No hay hitos del mensual repetidos en la semana.')(L.paresDuplicados().length)}</p><button class="btn wide" data-a="ver-dup">Revisar y unir repetidos</button></div>` : ''}
-      <div class="card"><h3>Conexión</h3><p><span class="dot ${S.nube ? 'green' : 'gray'}"></span> ${S.nube ? 'Conectado a Google Sheets (nube)' : '<b>Modo local</b>: los datos viven solo en este navegador.'}</p>
+      <div class="card"><h3>Conexión</h3><p><span class="dot ${S.nube ? 'green' : 'gray'}"></span> ${S.nube ? (S.modoGAS ? 'Conectado a la Hoja de Google (app servida por Apps Script)' : 'Conectado a Google Sheets (nube)') : '<b>Modo local</b>: los datos viven solo en este navegador.'}</p>
         ${S.nube ? `<p class="muted sm">Cuenta: <b>${esc(e.email || '—')}</b> · Rol: <b>${esc(e.rol || '—')}</b><br>Cambios pendientes de subir: <b>${S.pendientes()}</b>${e.ultima ? ' · Última sincronización ' + new Date(e.ultima).toLocaleTimeString('es-CL') : ''}</p><div class="row"><button class="btn" data-a="sync">Sincronizar ahora</button><button class="btn" data-a="recargar-todo">Recargar todo desde la Hoja</button><button class="btn" data-a="salir">Cerrar sesión y borrar datos de este equipo</button></div>`
         : '<p class="muted sm">Para trabajar varios usuarios a la vez, sigue el README: crea la planilla, despliega el Apps Script y completa <code>config.js</code>.</p>'}</div>
       <div class="card"><h3>Roles</h3><p class="muted sm"><b>admin</b>: todo, incluida la configuración e importación. <b>editor</b>: eventos, ausencias, reemplazos y foco semanal. <b>lector</b>: solo consulta. Los permisos se administran en la hoja <code>usuarios</code> de la planilla maestra.</p>
@@ -549,5 +549,5 @@ window.addEventListener('hashchange', ruta);
 $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join('');
 $('#brand').textContent = CFG.COLEGIO || 'SIG-UTP';
 ruta();
-if (S.nube) { S.iniciarGoogle($('#gbtn'), () => { $('#login').hidden = true; S.sincronizar(); }); if (S.sesionValida()) S.sincronizar(); }
+if (S.nube) { if (!S.modoGAS) S.iniciarGoogle($('#gbtn'), () => { $('#login').hidden = true; S.sincronizar(); }); if (S.sesionValida()) S.sincronizar(); }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });

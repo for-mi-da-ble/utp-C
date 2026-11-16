@@ -6,7 +6,7 @@ const CFG = window.SIG_CONFIG || {};
 let cargando;
 function jspdf() {
   if (window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
-  return cargando = cargando || new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'vendor/jspdf.min.js'; s.onload = () => ok(window.jspdf.jsPDF); s.onerror = () => no(new Error('No se pudo cargar el generador de PDF')); document.head.appendChild(s); });
+  return cargando = cargando || new Promise((ok, no) => { const s = document.createElement('script'); s.src = ((window.SIG_CONFIG || {}).BASE || '') + 'vendor/jspdf.min.js'; s.onload = () => ok(window.jspdf.jsPDF); s.onerror = () => no(new Error('No se pudo cargar el generador de PDF')); document.head.appendChild(s); });
 }
 // Las fuentes estándar del PDF solo cubren Latin-1: se quitan emojis y símbolos fuera de rango.
 const txt = s => String(s == null ? '' : s).replace(/[–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF]/g, '').replace(/[ \t]+/g, ' ').trim();
@@ -22,7 +22,7 @@ const IL = 1.34; // interlineado del PDF (algo más amplio para leer impreso)
 let fuentes;
 const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 const traer = r => fetch(r).then(x => { if (!x.ok) throw new Error(r); return x.arrayBuffer(); });
-const cargarFuentes = () => fuentes = fuentes || Promise.all(['regular', 'bold'].map(n => traer(`vendor/outfit-${n}.ttf`).then(b64))).catch(() => null);
+const cargarFuentes = () => fuentes = fuentes || Promise.all(['regular', 'bold'].map(n => traer(((window.SIG_CONFIG || {}).BASE || '') + `vendor/outfit-${n}.ttf`).then(b64))).catch(() => null);
 
 export async function pdfSemana(l) {
   const [JsPDF, OF] = await Promise.all([jspdf(), cargarFuentes()]), doc = new JsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter', compress: true });

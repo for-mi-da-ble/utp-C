@@ -42,7 +42,25 @@ python3 -m http.server 8765
 Abre `http://localhost:8765`, ve a **Ajustes → Cargar base unificada** y elige el libro unificado.
 En modo local los datos quedan solo en ese navegador.
 
-## Puesta en marcha con varios usuarios (base en Google Drive)
+## Opción A (recomendada mientras no haya Google Cloud): app servida por Apps Script
+
+No necesita Google Cloud ni ID de cliente: la app se abre desde una dirección de Apps Script, Google identifica a cada
+persona con su cuenta del colegio y los datos van directo a la Hoja. La interfaz se sigue cargando desde GitHub Pages,
+así que las mejoras que se publiquen aquí aparecen solas.
+
+1. Abre la Hoja de la base → *Extensiones → Apps Script*.
+2. En `Código.gs` borra el contenido y pega `apps-script/Code.gs`.
+3. *+ → HTML*, nómbralo **`index`** (sin `.html`) y pega `apps-script/index.html`. Guarda.
+4. Elige la función `instalar` y pulsa **Ejecutar** (acepta los permisos). Agrega las columnas de control y la pestaña
+   `usuarios` contigo como `admin`.
+5. *Implementar → Nueva implementación → Aplicación web* · Ejecutar como: **Yo** · Quién tiene acceso:
+   **Cualquier usuario de andaliensur.cl** (solo cuentas del colegio). Copia la URL `/exec`: esa es la dirección de la app.
+6. Agrega a tus colegas en la pestaña `usuarios` (`correo | rol`). Quien no esté ahí ve un aviso y no recibe datos.
+
+Se puede incrustar en el Google Sites del colegio. Al cambiar `Code.gs` o `index`: *Implementar → Administrar
+implementaciones → Editar → Versión nueva* (misma URL).
+
+## Opción B: app en GitHub Pages con ID de cliente de Google Cloud
 
 La base vive en una **Hoja de cálculo de Google** con las mismas pestañas que la base unificada (`01_Semanas_Clases` …
 `09_Cumpleanos`). La app la lee y escribe a través de un Apps Script vinculado a esa Hoja; también se puede editar a
@@ -168,6 +186,8 @@ node tests/mock-backend.js &             # simulador de Apps Script en :8766
 node tests/features.test.js BD.xlsx /tmp # arrastre, importación, choques, base unificada (BD = planilla original BD_AppSheet)
 node tests/sync.test.js BD.xlsx          # multiusuario, roles y seguridad
 node tests/plan.test.js Base_Unificada.xlsx  # Planeación: carga, roles y cambios externos (requiere el simulador)
+python3 tests/static-cors.py 8767 &      # sitio estático con CORS (como GitHub Pages)
+node tests/gas.test.js BD.xlsx /tmp      # opción A: app servida por Apps Script
 node tests/semana.test.js Base_Unificada.xlsx /tmp  # modo edición, cumpleaños y PDF
 node tests/calendario.test.js Base_Unificada.xlsx /tmp  # mensual, formulario, repetidos y PDF de 1 hoja (44 semanas)
 ```

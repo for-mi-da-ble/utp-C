@@ -1,7 +1,12 @@
 // Almacén de datos: persistencia local inmediata (RF-5.3) + sincronización por filas con Google Sheets.
 const CFG = window.SIG_CONFIG || {};
 export const TABLES = ['semanas', 'eventos', 'ausencias', 'funcionarios', 'cursos', 'espacios', 'bloques', 'matriz', 'cumpleanos', 'proyectos', 'tareas'];
-export const nube = !!(CFG.API_URL && CFG.GOOGLE_CLIENT_ID);
+// Dos formas de conectarse a la Hoja de Google:
+//  · App servida por el propio Apps Script (google.script.run): Google identifica la cuenta del colegio; no requiere Google Cloud.
+//  · App en GitHub Pages + API_URL y GOOGLE_CLIENT_ID (requiere un ID de cliente OAuth en Google Cloud).
+export const modoGAS = !!(window.google && google.script && google.script.run);
+export const nube = modoGAS || !!(CFG.API_URL && CFG.GOOGLE_CLIENT_ID);
+const llamarGAS = cuerpo => new Promise((ok, no) => google.script.run.withSuccessHandler(r => { try { ok(JSON.parse(r)); } catch (e) { no(e); } }).withFailureHandler(no).api(cuerpo));
 const K = 'sigutp:';
 const db = {}, idx = {};
 let outbox = [], rev = 0, listeners = [], timer = null, syncing = false;
@@ -48,7 +53,7 @@ export const pendientes = () => outbox.length;
 // ---------- autenticación (Google Identity Services) ----------
 let token = sessionStorage.getItem(K + 'tok') || '';
 function claims(tk) { try { return JSON.parse(decodeURIComponent(escape(atob(tk.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))); } catch { return null; } }
-export function sesionValida() { const c = token && claims(token); return !!(c && c.exp * 1000 > Date.now() + 30000); }
+export function sesionValida() { if (modoGAS) return true; const c = token && claims(token); return !!(c && c.exp * 1000 > Date.now() + 30000); }
 export function iniciarGoogle(btn, alEntrar) {
   const go = () => {
     google.accounts.id.initialize({
@@ -85,13 +90,13 @@ export async function sincronizar() {
       otra = false;
       const lote = outbox.slice(0, 1200);
       // text/plain evita el preflight CORS que Apps Script no responde.
-      const res = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, since: rev, ops: lote }), redirect: 'follow' });
-      const j = await res.json();
+      const j = modoGAS ? await llamarGAS(JSON.stringify({ since: rev, ops: lote }))
+        : await (await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, since: rev, ops: lote }), redirect: 'follow' })).json();
       if (!j.ok && (j.code === 403 || j.code === 400) && lote.length) { // el servidor rechazó los cambios: se descartan y se vuelve a bajar el estado real
         const env = new Set(lote); outbox = outbox.filter(o => !env.has(o)); ls.set('outbox', outbox); rev = 0; ls.set('rev', 0);
         estado.sync = 'error'; estado.error = (j.error || 'Cambios rechazados') + ' Los cambios no autorizados se descartaron.'; setTimeout(sincronizar, 1500); return;
       }
-      if (!j.ok) { if (j.code === 401) { token = ''; sessionStorage.removeItem(K + 'tok'); estado.sync = 'sesion'; } else { estado.sync = 'error'; } estado.error = j.error || 'Error del servidor'; if (j.code === 403) { estado.rol = ''; ls.set('rol', ''); } return; }
+      if (!j.ok) { if (j.code === 401 && !modoGAS) { token = ''; sessionStorage.removeItem(K + 'tok'); estado.sync = 'sesion'; } else { estado.sync = 'error'; } estado.error = j.error || 'Error del servidor'; if (j.code === 403) { estado.rol = ''; ls.set('rol', ''); } return; }
       const enviados = new Set(lote); outbox = outbox.filter(o => !enviados.has(o)); ls.set('outbox', outbox);
       const pend = new Set(outbox.map(o => o.t + '|' + o.id));
       const completo = rev === 0; // descarga completa: lo local que no exista en la nube (y no esté pendiente) se elimina

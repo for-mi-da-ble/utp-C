@@ -2,7 +2,7 @@
 // Sirve la app en http://localhost:8766 con la API en /exec. SOLO PARA PRUEBAS.
 const http = require('http'), fs = require('fs'), path = require('path'), vm = require('vm'), crypto = require('crypto');
 const ROOT = path.join(__dirname, '..'), CID = 'test-client.apps.googleusercontent.com';
-const sheets = {}, props = {}, cache = {}; let actualizado = Date.now(); // fecha de modificación simulada del archivo en Drive
+const sheets = {}, props = {}, cache = {}; let usuarioGAS = ''; // cuenta "con sesión de Google" en el modo Apps Script let actualizado = Date.now(); // fecha de modificación simulada del archivo en Drive
 function Sheet(name) { this.name = name; this.d = []; }
 Sheet.prototype = {
   getName() { return this.name; }, getLastRow() { return this.d.length; }, getLastColumn() { return this.d[0] ? this.d[0].length : 0; }, getMaxRows() { return Math.max(this.d.length, 1000); }, getMaxColumns() { return 26; },
@@ -14,7 +14,7 @@ Sheet.prototype = {
 };
 const ss = { getId: () => 'hoja-prueba', getSheetByName: n => sheets[n] || null, insertSheet: n => sheets[n] = new Sheet(n) };
 const sandbox = { console, JSON, Date, Math, String, Number, Object, Array, encodeURIComponent,
-  SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() { } }, DriveApp: { getFileById: () => ({ getLastUpdated: () => new Date(actualizado) }) }, Session: { getEffectiveUser: () => ({ getEmail: () => 'admin@colegio.test' }) },
+  SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() { } }, HtmlService: {}, DriveApp: { getFileById: () => ({ getLastUpdated: () => new Date(actualizado) }) }, Session: { getEffectiveUser: () => ({ getEmail: () => 'admin@colegio.test' }), getActiveUser: () => ({ getEmail: () => usuarioGAS }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), setProperties: o => Object.assign(props, o) }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
   LockService: { getScriptLock: () => ({ waitLock() { }, tryLock: () => true, releaseLock() { } }) },
@@ -34,6 +34,14 @@ http.createServer((req, res) => {
   if (req.url === '/exec' && req.method === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', () => { const out = sandbox.doPost({ postData: { contents: b } }); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(out.t); }); return; }
   if (req.url === '/__tarea-externa' && req.method === 'POST') { // tarea escrita por la API de Sheets (fuera de la app)
     let b = ''; req.on('data', c => b += c); req.on('end', () => { const row = JSON.parse(b), h = sheets['11_Tareas']; h.d.push(h.d[0].map(k => String(row[k] ?? ''))); actualizado = Date.now() + 20000; res.end('ok'); }); return; }
+  // Modo Apps Script: la página "index" (servida aquí, en otro origen) carga la app desde el sitio estático (STATIC)
+  if (req.url.startsWith('/gas.html')) {
+    const STATIC = process.env.STATIC || 'http://localhost:8767/';
+    let h = fs.readFileSync(path.join(ROOT, 'apps-script/index.html'), 'utf8').split('https://for-mi-da-ble.github.io/utp-C/').join(STATIC);
+    const stub = `<script>(() => { const u = new URLSearchParams(location.search).get('u') || ''; const cadena = (ok, no) => ({ withSuccessHandler: f => cadena(f, no), withFailureHandler: f => cadena(ok, f),
+      api: cuerpo => fetch(location.origin + '/gas', { method: 'POST', headers: { 'x-user': u }, body: cuerpo }).then(r => r.text()).then(ok, no) }); window.google = { script: { run: cadena(() => {}, () => {}) } }; })();</script>`;
+    h = h.replace('<script type="module"', stub + '<script type="module"'); res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(h); }
+  if (req.url === '/gas' && req.method === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', () => { usuarioGAS = req.headers['x-user'] || ''; const out = sandbox.api(b); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(out); }); return; }
   if (req.url.startsWith('/__externo')) { // simula una edición hecha directamente en la Hoja (fuera de la app)
     const h = sheets['02_Eventos_Calendario'], c = h.d[0], fila = c.map(k => ({ id: 'EXT-1', fecha: '2026-11-12', titulo: 'Agregado directo en la Hoja', mensual: 'SI', seccion: 'ESTUDIANTES', jornada: 'AMBAS', area: 'UTP' }[k] || ''));
     h.d.push(fila); actualizado = Date.now() + 20000; res.end('ok'); return; }

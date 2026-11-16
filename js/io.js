@@ -5,7 +5,7 @@ import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, d
 let cargando;
 export function sheetjs() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
-  return cargando = cargando || new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'vendor/xlsx.min.js'; s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('No se pudo cargar el lector de Excel')); document.head.appendChild(s); });
+  return cargando = cargando || new Promise((ok, no) => { const s = document.createElement('script'); s.src = ((window.SIG_CONFIG || {}).BASE || '') + 'vendor/xlsx.min.js'; s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('No se pudo cargar el lector de Excel')); document.head.appendChild(s); });
 }
 const leer = async file => (await sheetjs()).read(await file.arrayBuffer());
 const filas = (X, wb, n) => wb.Sheets[n] ? X.utils.sheet_to_json(wb.Sheets[n], { raw: false, defval: '' }) : [];

@@ -62,29 +62,54 @@ function cambioExterno_(ss, props) {
   catch (e) { return false; }
 }
 
-function doGet() { return json_({ ok: true, servicio: 'SIG-UTP' }); }
+/**
+ * Sirve la app (página "index" de este proyecto, que carga el código desde GitHub Pages).
+ * Implementar como Aplicación web · Ejecutar como: Yo · Acceso: solo usuarios del dominio del colegio.
+ * Así Google identifica a cada persona con su cuenta institucional y no hace falta Google Cloud.
+ */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index').setTitle('SIG-UTP · Colegio Marina de Chile')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL); // permite incrustarla en el Google Sites del colegio
+}
+
+/** Llamado por la app con google.script.run: la identidad la da la sesión de Google (cuentas del dominio). */
+function api(cuerpo) {
+  try {
+    var email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+    if (!email) return JSON.stringify({ ok: false, code: 401, error: 'No se pudo identificar tu cuenta. Entra con tu cuenta del colegio.' });
+    var role = rol_(email);
+    if (!role) return JSON.stringify({ ok: false, code: 403, error: 'La cuenta ' + email + ' no está autorizada. Pide acceso a la Jefatura de UTP.' });
+    return JSON.stringify(procesar_(JSON.parse(cuerpo || '{}'), { ok: true, email: email, role: role }));
+  } catch (err) { console.error(err); return JSON.stringify({ ok: false, code: 500, error: 'Error interno del servidor.' }); }
+}
 
 function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents || '{}');
     var u = autenticar_(req.token);
     if (!u.ok) return json_(u);
-    var ops = req.ops || [];
-    if (ops.length > MAX_OPS) return json_({ ok: false, code: 413, error: 'Demasiados cambios en una sola petición.' });
-    if (ops.length && u.role === 'lector') return json_({ ok: false, code: 403, error: 'Tu cuenta es de solo lectura.' });
-    for (var i = 0; i < ops.length; i++) {
-      if (!TABLAS[ops[i].t] || typeof ops[i].id !== 'string' || !ops[i].id) return json_({ ok: false, code: 400, error: 'Operación inválida.' });
-      if (SOLO_ADMIN[ops[i].t] && u.role !== 'admin' && !(ops[i].t === 'semanas' && !ops[i].del))
-        return json_({ ok: false, code: 403, error: 'Solo un administrador puede modificar la configuración (' + ops[i].t + ').' });
-    }
-    var lock = LockService.getScriptLock();
-    lock.waitLock(25000);
-    try { return json_(sincronizar_(ops, Number(req.since) || 0, u)); }
-    finally { lock.releaseLock(); }
+    return json_(procesar_(req, u));
   } catch (err) {
     console.error(err);
     return json_({ ok: false, code: 500, error: 'Error interno del servidor.' });
   }
+}
+
+/** Valida permisos y aplica los cambios (común a doPost con token y a api() con sesión de Google). */
+function procesar_(req, u) {
+  var ops = req.ops || [];
+  if (ops.length > MAX_OPS) return { ok: false, code: 413, error: 'Demasiados cambios en una sola petición.' };
+  if (ops.length && u.role === 'lector') return { ok: false, code: 403, error: 'Tu cuenta es de solo lectura.' };
+  for (var i = 0; i < ops.length; i++) {
+    if (!TABLAS[ops[i].t] || typeof ops[i].id !== 'string' || !ops[i].id) return { ok: false, code: 400, error: 'Operación inválida.' };
+    if (SOLO_ADMIN[ops[i].t] && u.role !== 'admin' && !(ops[i].t === 'semanas' && !ops[i].del))
+      return { ok: false, code: 403, error: 'Solo un administrador puede modificar la configuración (' + ops[i].t + ').' };
+  }
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try { return sincronizar_(ops, Number(req.since) || 0, u); }
+  finally { lock.releaseLock(); }
 }
 
 function sincronizar_(ops, since, u) {
