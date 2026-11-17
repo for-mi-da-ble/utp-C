@@ -41,19 +41,29 @@ const navFecha = (paso, lbl) => `<div class="datenav"><button class="ibtn" data-
 
 // ============ HOY (contingencia) ============
 function donut(p, c1) { const r = 52, C = 2 * Math.PI * r; return `<svg viewBox="0 0 130 130" class="donut"><circle cx="65" cy="65" r="${r}" class="trk"/><circle cx="65" cy="65" r="${r}" stroke="${c1}" stroke-dasharray="${(C * p).toFixed(1)} ${C}" transform="rotate(-90 65 65)" class="arc"/></svg>`; }
-function chipsCobertura(a, x, fecha) {
-  if (x.cubre) return `<div class="cubre"><span class="tag green">${ic('check')} ${esc(x.cubre)}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${x.key}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
-  if (!ed()) return `<span class="tag pink">Sin cubrir</span>`;
-  const c = L.candidatos(fecha, x.b.ini, x.b.fin);
-  return `<div class="chips">${c.slice(0, 5).map(p => `<button class="chip ${p.tipo === 'NOLECT' ? 'lime' : 'violet'}" data-a="cubrir" data-id="${a.id}" data-k="${x.key}" data-n="${esc(p.nombre)}" title="${p.tipo === 'NOLECT' ? 'No lectivo' : 'Aula de recursos PIE'} · ${p.n} reemplazos este mes">${esc(L.nombreCorto(p.nombre))}<i>${p.n}</i></button>`).join('')}
-    ${c.length > 5 ? `<button class="chip" data-a="mas-cand" data-id="${a.id}" data-k="${x.key}">+${c.length - 5}</button>` : ''}${!c.length ? '<span class="muted sm">Nadie disponible · </span>' : ''}
-    <button class="chip dark" data-a="cubrir" data-id="${a.id}" data-k="${x.key}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button><button class="chip" data-a="cubrir-otro" data-id="${a.id}" data-k="${x.key}">Otro…</button></div>`;
+const chipCand = (p, a, k, largo) => `<button class="chip ${L.GRUPOS[p.grupo].k}" data-a="cubrir" data-id="${a.id}" data-k="${k}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)} · ${p.n} reemplazo${p.n === 1 ? '' : 's'} este mes">${esc(largo ? p.nombre : L.nombreCorto(p.nombre))}${largo ? `<small>${esc(L.GRUPOS[p.grupo].n)}</small>` : ''}<i>${p.n}</i></button>`;
+const LEYENDA_COB = `<div class="cob-ley"><span class="g-verde">PIE en el curso</span><span class="g-amarillo">PIE en aula de recursos</span><span class="g-rojo">Docente disponible</span></div>`;
+function chipsCobertura(a, t, fecha) {
+  if (t.cubre) return `<div class="cubre"><span class="tag green">${ic('check')} ${esc(t.cubre)}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${t.keys}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
+  if (!ed()) return `<span class="tag pink">${t.parcial ? 'Cubierto en parte' : 'Sin cubrir'}</span>`;
+  const c = L.candidatos(fecha, t.ini, t.fin, t.b.curso_id), prim = c.filter(p => p.grupo !== 'DOC' && p.grupo !== 'OTRO'), doc = c.filter(p => p.grupo === 'DOC');
+  const vis = prim.concat(doc.slice(0, 3)), resto = c.length - vis.length;
+  return `<div class="chips">${vis.map(p => chipCand(p, a, t.keys)).join('')}
+    ${resto > 0 ? `<button class="chip g-rojo otros" data-a="mas-cand" data-id="${a.id}" data-k="${t.keys}" data-ini="${t.ini}" data-fin="${t.fin}">Otros (${resto})</button>` : ''}${!c.length ? '<span class="muted sm">Nadie disponible · </span>' : ''}
+    <button class="chip dark" data-a="cubrir" data-id="${a.id}" data-k="${t.keys}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button><button class="chip" data-a="cubrir-otro" data-id="${a.id}" data-k="${t.keys}">Otro nombre…</button></div>`;
+}
+/** Explica por qué una ausencia no deja cursos sin docente (p. ej., registrada solo en la tarde y sus clases son en la mañana). */
+function sinClasesTxt(a, fecha) {
+  if (L.dow(fecha) > 5) return 'Fin de semana.';
+  const todo = L.afectados({ ...a, jornada: 'AMBAS' }, fecha).length, tr = L.textoTramo(a.jornada);
+  if (!todo) return `No tiene clases lectivas el ${L.DIAS[L.dow(fecha)].toLowerCase()}.`;
+  return `No tiene clases en el tramo registrado: ${tr}. Ese día tiene ${todo} bloque${todo > 1 ? 's' : ''} de clases fuera de ese tramo. Si también falta a ${todo > 1 ? 'esas horas' : 'esa hora'}, edita la ausencia y elige «Día completo» o «Por horas».`;
 }
 function tarjetaAusencia(a, fecha) {
-  const af = L.afectados(a, fecha), jor = a.jornada === 'MANANA' ? ' · solo mañana' : a.jornada === 'TARDE' ? ' · solo tarde' : '';
+  const af = L.tramos(a, fecha), jor = L.textoTramo(a.jornada) ? ' · ' + L.textoTramo(a.jornada) : '';
   return `<div class="aus"><div class="aus-h" data-a="edit-aus" data-id="${a.id}"><span class="avatar pink">${ic('user')}</span><div><b>${esc(a.nombre)}</b><small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}${jor}${a.hasta && a.hasta !== a.fecha ? ` · hasta ${L.fechaCorta(a.hasta)}` : ''}${a.nota ? ' · ' + esc(a.nota) : ''}</small></div></div>
-    ${af.length ? af.map(x => `<div class="afe ${x.cubre ? 'ok' : ''}"><div class="afe-i"><span class="blk">${x.cod}</span><div><b>${esc(x.b.curso_id || '—')}</b> · ${esc(materia(x.b))}<small>${rango(x.b)} · ${esc(L.nombreEspacio(x.b.sala_id) || 'Sala por definir')}</small></div></div>${chipsCobertura(a, x, fecha)}</div>`).join('')
-      : `<p class="muted sm pad">${a.func_id ? 'No tiene clases lectivas en este tramo: no deja cursos sin atención.' : 'Persona externa a la nómina: sin horario registrado.'}</p>`}</div>`;
+    ${af.length ? LEYENDA_COB + af.map(t => `<div class="afe ${t.cubre ? 'ok' : ''}"><div class="afe-i"><span class="blk">${t.codigo}</span><div><b>${esc(t.b.curso_id || t.b.detalle || '—')}</b>${t.b.curso_id ? ' · ' + esc(materia(t.b)) : ''}<small>${t.ini}–${t.fin} · ${esc(L.nombreEspacio(t.b.sala_id) || 'Sala por definir')}</small></div></div>${chipsCobertura(a, t, fecha)}</div>`).join('')
+      : `<p class="muted sm pad">${a.func_id ? sinClasesTxt(a, fecha) : 'Persona externa a la nómina: sin horario registrado.'}</p>`}</div>`;
 }
 function vHoy() {
   const f = ui.fecha, r = L.resumenDia(f), w = L.semanaDe(f), sin = r.afectados - r.cubiertos, p = r.afectados ? r.cubiertos / r.afectados : 1;
@@ -104,7 +114,7 @@ function parteDiario(f) {
   else {
     html += '<table border="1" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px"><tr style="background:#eef0f3"><th>Docente</th><th>Motivo</th><th>Bloque</th><th>Curso</th><th>Sala</th><th>Cubre</th></tr>';
     for (const a of r.aus) {
-      const af = L.afectados(a, f), mot = L.AUS_TIPOS[a.tipo] + (a.jornada === 'MANANA' ? ' (mañana)' : a.jornada === 'TARDE' ? ' (tarde)' : '');
+      const af = L.afectados(a, f), mot = L.AUS_TIPOS[a.tipo] + (L.textoTramo(a.jornada) ? ' (' + L.textoTramo(a.jornada) + ')' : '');
       ln.push(`• ${a.nombre} — ${mot}`);
       if (!af.length) html += `<tr><td>${esc(a.nombre)}</td><td>${esc(mot)}</td><td colspan="4">Sin clases lectivas afectadas</td></tr>`;
       af.forEach((x, i) => { const c = x.cubre || 'POR DEFINIR'; ln.push(`   ${x.cod} ${rango(x.b)} · ${x.b.curso_id} · ${materia(x.b)} → ${c}`); html += `<tr>${i ? '' : `<td rowspan="${af.length}">${esc(a.nombre)}</td><td rowspan="${af.length}">${esc(mot)}</td>`}<td>${x.cod} ${rango(x.b)}</td><td>${esc(x.b.curso_id)} · ${esc(materia(x.b))}</td><td>${esc(L.nombreEspacio(x.b.sala_id))}</td><td>${x.cubre ? esc(c) : '<b>POR DEFINIR</b>'}</td></tr>`; });
@@ -236,7 +246,7 @@ function vCal() {
 // ============ HORARIOS ============
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
 function celdas(blocks) { const m = {}; for (const b of blocks) { const c = L.bloqueDe(b.ini, b.fin); if (c) (m[c + '|' + b.dia] = m[c + '|' + b.dia] || []).push(b); } return m; }
-function ausenteEn(fecha, b) { return L.ausenciasDe(fecha).find(a => a.func_id === b.func_id && (!a.jornada || a.jornada === 'AMBAS' || a.jornada === L.jornadaDe(b.ini))); }
+function ausenteEn(fecha, b) { return L.ausenciasDe(fecha).find(a => a.func_id === b.func_id && L.enJornada(a.jornada, b.ini, b.fin)); }
 function grillaHor(blocks, rows, modo, pref) {
   const m = celdas(blocks), l = lunes();
   let g = `<div class="hg"><div class="hg-c"></div>${[1, 2, 3, 4, 5].map(d => `<div class="hg-d ${L.addDias(l, d - 1) === L.hoy() ? 'today' : ''}"><b>${L.DIAS[d]}</b><span>${L.fechaCorta(L.addDias(l, d - 1))}</span></div>`).join('')}`;
@@ -394,23 +404,27 @@ function mEvento(id, pre) {
 }
 function avisoColision() { const f = $('[data-form=ev]'); if (!f) return; const o = leerForm(f); o.id = f.dataset.id; const c = L.colisiones(o); $('#colis').innerHTML = c.length ? `<div class="alert pink">${ic('alert')}<div><b>Posible choque de espacio</b><br>${c.slice(0, 4).map(esc).join('<br>')}${c.length > 4 ? `<br>…y ${c.length - 4} más` : ''}</div></div>` : ''; }
 function mAusencia(id) {
-  const a = get('ausencias', id) || { fecha: ui.fecha, tipo: 'LICENCIA', jornada: 'AMBAS' };
+  const a0 = get('ausencias', id) || { fecha: ui.fecha, tipo: 'LICENCIA', jornada: 'AMBAS' }, mh = L.RE_HORAS.exec(a0.jornada || '');
+  const a = mh ? { ...a0, jornada: 'HORAS', h_ini: mh[1], h_fin: mh[2] } : a0;
   if (!ed()) return;
   modal(id ? 'Editar ausencia' : 'Registrar ausencia', `<form class="form" data-form="aus" data-id="${esc(id || '')}">${campos([
     { k: 'nombre', label: 'Docente ausente', req: 1, list: 'dl-func', ph: 'Escribe para buscar o ingresa un nombre libre' },
     { k: 'tipo', label: 'Motivo', type: 'select', options: Object.entries(L.AUS_TIPOS) },
-    { k: 'jornada', label: 'Tramo', type: 'seg', options: [['AMBAS', 'Día completo'], ['MANANA', 'Mañana'], ['TARDE', 'Tarde']] },
+    { k: 'jornada', label: 'Tramo', type: 'seg', options: [['AMBAS', 'Día completo'], ['MANANA', 'Mañana'], ['TARDE', 'Tarde (desde 14:00)'], ['HORAS', 'Por horas']] },
+    { k: 'h_ini', label: 'Desde la hora', type: 'time', w: 'half horas' }, { k: 'h_fin', label: 'Hasta la hora', type: 'time', w: 'half horas' },
     { k: 'fecha', label: 'Desde', type: 'date', req: 1, w: 'half' }, { k: 'hasta', label: 'Hasta (opcional)', type: 'date', w: 'half' }, { k: 'nota', label: 'Observación', ph: 'Ej.: deja guía en UTP' }], a)}<div id="prev"></div></form>`, pie(!!id, 'aus'));
   previaAusencia();
 }
 function funcPorNombre(n) { const k = L.norm(n); return k && all('funcionarios').find(f => L.norm(f.nombre) === k); }
 function previaAusencia() {
   const f = $('[data-form=aus]'); if (!f) return; const o = leerForm(f), fu = funcPorNombre(o.nombre), box = $('#prev');
+  f.querySelectorAll('.fld.horas').forEach(el => el.hidden = o.jornada !== 'HORAS');
+  if (o.jornada === 'HORAS') o.jornada = o.h_ini && o.h_fin ? o.h_ini + '-' + o.h_fin : 'AMBAS';
   if (o.tipo === 'ADMIN_MEDIO' && o.jornada === 'AMBAS') { const r = f.querySelector('[name=jornada][value=MANANA]'); r.checked = true; o.jornada = 'MANANA'; }
   if (!o.nombre) return box.innerHTML = '';
   if (!fu) return box.innerHTML = `<div class="alert">${ic('user')}<div>Nombre libre (fuera de la nómina): se registrará sin cruce de horario.</div></div>`;
-  const af = L.afectados({ func_id: fu.id, jornada: o.jornada, cobertura: '' }, o.fecha);
-  box.innerHTML = af.length ? `<div class="alert pink">${ic('alert')}<div><b>Deja ${af.length} bloque${af.length > 1 ? 's' : ''} sin docente el ${L.DIAS[L.dow(o.fecha)].toLowerCase()}:</b><div class="prevl">${af.map(x => `<span><b>${x.cod}</b> ${esc(x.b.curso_id)} · ${L.candidatos(o.fecha, x.b.ini, x.b.fin).length} disp.</span>`).join('')}</div></div></div>` : `<div class="alert green">${ic('check')}<div>No tiene clases lectivas en ese tramo.</div></div>`;
+  const aa = { func_id: fu.id, jornada: o.jornada, cobertura: '' }, af = L.tramos(aa, o.fecha);
+  box.innerHTML = af.length ? `<div class="alert pink">${ic('alert')}<div><b>Deja ${af.length} tramo${af.length > 1 ? 's' : ''} de clases sin docente el ${L.DIAS[L.dow(o.fecha)].toLowerCase()}:</b><div class="prevl">${af.map(t => `<span><b>${t.ini}–${t.fin}</b> ${esc(t.b.curso_id || t.b.detalle)} · ${L.candidatos(o.fecha, t.ini, t.fin, t.b.curso_id).filter(p => p.grupo !== 'OTRO').length} disp.</span>`).join('')}</div></div></div>` : `<div class="alert green">${ic('check')}<div>${esc(sinClasesTxt(aa, o.fecha))}</div></div>`;
 }
 function mBloque(id, pre) {
   const b = get('bloques', id) || { tipo: 'CLASE', ...pre }, T = L.TIPOS[b.tipo] || {};
@@ -429,6 +443,8 @@ function guardar(f) {
   if (f === 'ev') { const prev = { ...(get('eventos', id) || { origen: 'App' }) }; delete prev.nota; delete prev.tipo; put('eventos', { ...prev, ...o, id: id || S.uid('EV') }); ui.fecha = o.fecha; if (ui.view === 'calendario') ui.mes = o.fecha.slice(0, 7); }
   else if (f === 'aus') {
     if (o.hasta && o.hasta < o.fecha) return toast('La fecha "hasta" es anterior al inicio', 'err');
+    if (o.jornada === 'HORAS') { if (!(o.h_ini && o.h_fin && L.tmin(o.h_fin) > L.tmin(o.h_ini))) return toast('Indica la hora de inicio y de término de la ausencia', 'err'); o.jornada = o.h_ini + '-' + o.h_fin; }
+    delete o.h_ini; delete o.h_fin;
     const fu = funcPorNombre(o.nombre), prev = get('ausencias', id) || {};
     put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: id || S.uid('AU') });
     ui.fecha = o.fecha; if (!id) location.hash = '#hoy';
@@ -454,7 +470,7 @@ function borrar(btn, f) {
   if (t === 'cursos' && all('bloques').some(b => b.curso_id === form.dataset.id)) return toast('El curso tiene bloques de horario: no se puede eliminar', 'err');
   del(t, form.dataset.id); cerrarModal(); toast('Eliminado');
 }
-function setCob(id, k, nombre) { const a = get('ausencias', id); if (!a) return; const c = L.cob(a); if (nombre) c[k] = nombre; else delete c[k]; put('ausencias', { ...a, cobertura: JSON.stringify(c) }); }
+function setCob(id, k, nombre) { const a = get('ausencias', id); if (!a) return; const c = L.cob(a); for (const x of String(k).split(',')) if (nombre) c[x] = nombre; else delete c[x]; put('ausencias', { ...a, cobertura: JSON.stringify(c) }); }
 function swap(pref, a, b) { // intercambia día/horario de los bloques de dos celdas
   if (a === b || !adm()) return; const [, ca, da] = a.split(':'), [, cb, db] = b.split(':');
   const base = pref === 'hc' ? all('bloques').filter(x => x.curso_id === ui.curso && (x.tipo === 'CLASE' || x.tipo === 'CODOC')) : all('bloques').filter(x => x.func_id === ui.func);
@@ -490,7 +506,8 @@ const A = {
   cubrir: el => { setCob(el.dataset.id, el.dataset.k, el.dataset.n); if ($('#modal-root').firstChild) cerrarModal(); }, descubrir: el => setCob(el.dataset.id, el.dataset.k, ''),
   'cubrir-otro': el => modal('Asignar reemplazo', `<form class="form" data-form="otro" data-id="${el.dataset.id}" data-k="${el.dataset.k}">${campos([{ k: 'n', label: 'Nombre de quien cubre', req: 1, list: 'dl-func', ph: 'Cualquier funcionario o reemplazante externo' }], {})}</form>`, `<span class="grow"></span><button class="btn dark" data-a="ok-otro">Asignar</button>`),
   'ok-otro': () => { const f = $('[data-form=otro]'), n = leerForm(f).n; if (!n) return; setCob(f.dataset.id, f.dataset.k, n); cerrarModal(); },
-  'mas-cand': el => { const a = get('ausencias', el.dataset.id), [f, bid] = el.dataset.k.split('|'), b = get('bloques', bid); modal('¿Quién puede cubrir?', `<p class="muted sm">${esc(b.curso_id)} · ${rango(b)} · ordenados por menos reemplazos en el mes</p><div class="chips col">${L.candidatos(f, b.ini, b.fin).map(p => `<button class="chip ${p.tipo === 'NOLECT' ? 'lime' : 'violet'}" data-a="cubrir" data-id="${a.id}" data-k="${el.dataset.k}" data-n="${esc(p.nombre)}">${esc(p.nombre)} <small>${p.tipo === 'NOLECT' ? 'No lectivo' : 'Aula recursos'}</small><i>${p.n}</i></button>`).join('')}</div>`); },
+  'mas-cand': el => { const a = get('ausencias', el.dataset.id), k = el.dataset.k, [f, bid] = k.split(',')[0].split('|'), b = get('bloques', bid), ini = el.dataset.ini || b.ini, fin = el.dataset.fin || b.fin, c = L.candidatos(f, ini, fin, b.curso_id);
+    modal('¿Quién puede cubrir?', `<p class="muted sm">${esc(b.curso_id || b.detalle)} · ${ini}–${fin} · en cada grupo, primero quien tiene menos reemplazos en el mes</p>${Object.keys(L.GRUPOS).map(g => { const l = c.filter(p => p.grupo === g); return l.length ? `<h4 class="cob-g ${L.GRUPOS[g].k}">${esc(L.GRUPOS[g].n)} <small>${esc(L.GRUPOS[g].d)}</small></h4><div class="chips col">${l.map(p => chipCand(p, a, k, 1)).join('')}</div>` : ''; }).join('') || '<p class="muted">Nadie disponible en ese horario.</p>'}`); },
   parte: () => mEnvio('Parte diario', parteDiario(ui.fecha)), boletin: () => mEnvio('Boletín semanal', boletin(lunes())),
   'copiar-txt': () => copiar(mEnvio.o.texto), 'copiar-html': () => copiar(mEnvio.o.texto, mEnvio.o.html),
   mes: el => ui.mes = el.dataset.m, area: el => ui.area = el.dataset.v, htab: el => ui.hTab = el.dataset.v, ciclo: el => { ui.ciclo = el.dataset.v; ui.curso = ''; }, curso: el => ui.curso = el.dataset.v,

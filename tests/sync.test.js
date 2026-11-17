@@ -19,7 +19,7 @@ const api = async (token, ops = [], since = 0) => (await fetch(U + '/exec', { me
   // 2. editor recibe datos y registra ausencia
   const B = await sesion('editor@colegio.test'); await sincronizado(B); await B.goto(U + '/#hoy');
   await B.waitForSelector('[data-a=nueva-aus]'); await B.click('[data-a=nueva-aus]'); const docente = await B.evaluate((() => { const b = JSON.parse(localStorage.getItem('sigutp:t:bloques')), f = JSON.parse(localStorage.getItem('sigutp:t:funcionarios')), c = {}; for (const x of b) if (x.tipo === 'CLASE' && +x.dia === 4 && x.func_id) c[x.func_id] = (c[x.func_id] || 0) + 1; const id = Object.keys(c).sort((a, z) => c[z] - c[a])[0]; return f.find(x => x.id === id).nombre; })); await B.fill('#f_nombre', docente); await B.fill('#f_fecha', '2026-11-12'); await B.click('[data-a=guardar]');
-  await B.waitForSelector('.afe'); await B.locator('.afe .chip.lime').first().click(); await sincronizado(B); console.log('✓ editor registró ausencia y reemplazo');
+  await B.waitForSelector('.afe'); await B.locator('.afe .chip[data-a=cubrir]:not(.dark)').first().click(); await sincronizado(B); console.log('✓ editor registró ausencia y reemplazo');
   // 3. admin la ve tras sincronizar
   await A.click('[data-a=sync]'); await sincronizado(A); await A.goto(U + '/#hoy'); await A.evaluate(() => { }); 
   await A.click('[data-a=fecha-hoy]'); const f = await A.evaluate(() => localStorage.getItem('sigutp:t:ausencias')); assert(f.includes(docente), 'admin debe recibir la ausencia'); console.log('✓ admin recibió la ausencia del editor');

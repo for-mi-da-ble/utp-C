@@ -315,3 +315,15 @@ h1 { color: var(--navy); }
 .pitem .tl { text-align: left; } .pitem .tl:hover b { text-decoration: underline; }
 .tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: var(--card); flex: none; } .tick:hover { border-color: var(--green); background: #dcf5e2; }
 .pitem.late .tick { border-color: #ffc2d8; }
+/* Cobertura de ausencias: prioridad por color (verde PIE en el curso · amarillo PIE en aula de recursos · rojo docente disponible) */
+.fld[hidden] { display: none; }
+.chip.g-verde { background: #e3f6e7; border-color: #a9dfb6; color: #14692b; }
+.chip.g-amarillo { background: #fff4cc; border-color: #f2d36b; color: #6e5100; }
+.chip.g-rojo { background: #ffe9e9; border-color: #f4b9b9; color: #9f1d24; }
+.chip.g-gris { background: var(--soft); border-color: var(--line); color: var(--mut); }
+.chip.otros { font-weight: 600; }
+.cob-ley { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--mut); margin: 2px 0 8px; }
+.cob-ley span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 1px solid; }
+.cob-ley .g-verde::before { background: #e3f6e7; border-color: #6cc283; } .cob-ley .g-amarillo::before { background: #fff4cc; border-color: #e0b72e; } .cob-ley .g-rojo::before { background: #ffe9e9; border-color: #e58a8a; }
+h4.cob-g { margin: 14px 0 6px; font-size: 14px; display: flex; flex-direction: column; gap: 2px; } h4.cob-g small { font-weight: 400; color: var(--mut); font-size: 12px; }
+h4.cob-g.g-verde { color: #14692b; } h4.cob-g.g-amarillo { color: #6e5100; } h4.cob-g.g-rojo { color: #9f1d24; } h4.cob-g.g-gris { color: var(--mut); }
