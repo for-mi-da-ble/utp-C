@@ -44,13 +44,13 @@ function donut(p, c1) { const r = 52, C = 2 * Math.PI * r; return `<svg viewBox=
 const chipCand = (p, a, k, largo) => `<button class="chip ${L.GRUPOS[p.grupo].k}" data-a="cubrir" data-id="${a.id}" data-k="${k}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)} · ${p.n} reemplazo${p.n === 1 ? '' : 's'} este mes">${esc(largo ? p.nombre : L.nombreCorto(p.nombre))}${largo ? `<small>${esc(L.GRUPOS[p.grupo].n)}</small>` : ''}<i>${p.n}</i></button>`;
 const LEYENDA_COB = `<div class="cob-ley"><span class="g-verde">PIE en el curso</span><span class="g-amarillo">PIE en aula de recursos</span><span class="g-rojo">Docente disponible</span></div>`;
 function chipsCobertura(a, t, fecha) {
-  if (t.cubre) return `<div class="cubre"><span class="tag green">${ic('check')} ${esc(t.cubre)}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${t.keys}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
+  if (t.cubre) return `<div class="cubre"><span class="tag ${t.cubre === L.NO_REQUIERE ? 'gray' : 'green'}">${ic('check')} ${esc(t.cubre === L.NO_REQUIERE ? 'No requiere reemplazo' : t.cubre)}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${t.keys}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
   if (!ed()) return `<span class="tag pink">${t.parcial ? 'Cubierto en parte' : 'Sin cubrir'}</span>`;
   const c = L.candidatos(fecha, t.ini, t.fin, t.b.curso_id), prim = c.filter(p => p.grupo !== 'DOC' && p.grupo !== 'OTRO'), doc = c.filter(p => p.grupo === 'DOC');
   const vis = prim.concat(doc.slice(0, 3)), resto = c.length - vis.length;
   return `<div class="chips">${vis.map(p => chipCand(p, a, t.keys)).join('')}
     ${resto > 0 ? `<button class="chip g-rojo otros" data-a="mas-cand" data-id="${a.id}" data-k="${t.keys}" data-ini="${t.ini}" data-fin="${t.fin}">Otros (${resto})</button>` : ''}${!c.length ? '<span class="muted sm">Nadie disponible · </span>' : ''}
-    <button class="chip dark" data-a="cubrir" data-id="${a.id}" data-k="${t.keys}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button><button class="chip" data-a="cubrir-otro" data-id="${a.id}" data-k="${t.keys}">Otro nombre…</button></div>`;
+    <button class="chip dark" data-a="cubrir" data-id="${a.id}" data-k="${t.keys}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button><button class="chip g-gris" data-a="cubrir" data-id="${a.id}" data-k="${t.keys}" data-n="${esc(L.NO_REQUIERE)}" title="No aparecerá en el parte diario">No requiere</button><button class="chip" data-a="cubrir-otro" data-id="${a.id}" data-k="${t.keys}">Otro nombre…</button></div>`;
 }
 /** Explica por qué una ausencia no deja cursos sin docente (p. ej., registrada solo en la tarde y sus clases son en la mañana). */
 function sinClasesTxt(a, fecha) {
@@ -125,7 +125,8 @@ function parteDatos(f) {
     const filas = [];
     for (const a of r.aus) {
       if (usados.has(a.id) || !es(a.tipo)) continue; usados.add(a.id);
-      const tr = L.tramos(a, f), sub = [t === 'OTRAS AUSENCIAS' || a.tipo === 'ADMIN_MEDIO' ? L.AUS_TIPOS[a.tipo] || a.tipo : '', L.textoTramo(a.jornada)].filter(Boolean).join(' · ');
+      const tr0 = L.tramos(a, f), tr = tr0.filter(x => x.cubre !== L.NO_REQUIERE); if (tr0.length && !tr.length) continue; // todo "No requiere": no va en el parte
+      const sub = [t === 'OTRAS AUSENCIAS' || a.tipo === 'ADMIN_MEDIO' ? L.AUS_TIPOS[a.tipo] || a.tipo : '', L.textoTramo(a.jornada)].filter(Boolean).join(' · ');
       const nombres = [...new Set(tr.map(x => x.cubre))];
       let rem;
       if (!tr.length) rem = [{ t: a.func_id ? 'Sin clases que cubrir' : 'Sin reemplazo', mut: 1 }];
@@ -206,7 +207,11 @@ async function parteImagen(d) {
 const pngDe = cv => new Promise(ok => cv.toBlob(ok, 'image/png'));
 function mParte(o) {
   const u = encodeURIComponent;
-  modal('Parte diario', `<p class="muted sm">Para el correo: <b>Copiar tabla</b> (o <b>Copiar imagen</b>), luego <b>Abrir Gmail</b> y pega con Ctrl+V en el mensaje.</p><div class="parte-prev">${o.html}</div>`,
+  const rapida = ed() ? `<details class="parte-add"${o.abierto ? ' open' : ''}><summary>${ic('plus')} Agregar ausencia de último momento</summary><div class="form" data-form="aus-rapida">${campos([
+    { k: 'nombre', label: 'Docente o funcionario/a', list: 'dl-func', ph: 'Escribe para buscar', w: 'half' }, { k: 'tipo', label: 'Motivo', type: 'select', options: Object.entries(L.AUS_TIPOS), w: 'half' },
+    { k: 'jornada', label: 'Tramo', type: 'seg', options: [['AMBAS', 'Día completo'], ['MANANA', 'Mañana'], ['TARDE', 'Tarde (desde 14:00)']] }], { tipo: 'ADMINISTRATIVO', jornada: 'AMBAS' })}
+    <button type="button" class="btn dark" data-a="parte-add-aus">${ic('plus')} Agregar al parte</button></div></details>` : '';
+  modal('Parte diario', `${rapida}<p class="muted sm">Para el correo: <b>Copiar tabla</b> (o <b>Copiar imagen</b>), luego <b>Abrir Gmail</b> y pega con Ctrl+V en el mensaje.</p><div class="parte-prev">${o.html}</div>`,
     `<button class="btn" data-a="parte-tabla">Copiar tabla</button><button class="btn" data-a="parte-img">Copiar imagen</button><button class="btn" data-a="parte-png">Descargar imagen</button>
      <a class="btn" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${u(o.texto)}">WhatsApp</a>
      <a class="btn dark" data-a="parte-gmail" target="_blank" rel="noopener noreferrer" href="https://mail.google.com/mail/?view=cm&fs=1&su=${u(o.asunto)}&body=${u('(Pega aquí la tabla del parte con Ctrl+V)')}">${ic('mail')} Abrir Gmail</a>`, 'wide');
@@ -602,6 +607,13 @@ const A = {
   'mas-cand': el => { const a = get('ausencias', el.dataset.id), k = el.dataset.k, [f, bid] = k.split(',')[0].split('|'), b = get('bloques', bid), ini = el.dataset.ini || b.ini, fin = el.dataset.fin || b.fin, c = L.candidatos(f, ini, fin, b.curso_id);
     modal('¿Quién puede cubrir?', `<p class="muted sm">${esc(b.curso_id || b.detalle)} · ${ini}–${fin} · en cada grupo, primero quien tiene menos reemplazos en el mes</p>${Object.keys(L.GRUPOS).map(g => { const l = c.filter(p => p.grupo === g); return l.length ? `<h4 class="cob-g ${L.GRUPOS[g].k}">${esc(L.GRUPOS[g].n)} <small>${esc(L.GRUPOS[g].d)}</small></h4><div class="chips col">${l.map(p => chipCand(p, a, k, 1)).join('')}</div>` : ''; }).join('') || '<p class="muted">Nadie disponible en ese horario.</p>'}`); },
   parte: () => mParte(parteDiario(ui.fecha)),
+  'parte-add-aus': () => {
+    const box = $('[data-form=aus-rapida]'), o = leerForm(box); if (!o.nombre) { $('#f_nombre').focus(); return toast('Escribe el nombre de quien falta', 'err'); }
+    const fu = funcPorNombre(o.nombre), f = ui.fecha;
+    if (fu && L.ausenciasDe(f).some(a => a.func_id === fu.id)) return toast(fu.nombre + ' ya tiene una ausencia registrada hoy', 'err');
+    put('ausencias', { id: S.uid('AU'), fecha: f, hasta: f, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, tipo: o.tipo, jornada: o.jornada, nota: '', cobertura: '' });
+    const p = parteDiario(f); p.abierto = 1; mParte(p); toast('Agregada al parte: ' + nombreParte(fu ? fu.nombre : o.nombre) + '. Asigna su reemplazo en «Hoy».', 'ok');
+  },
   'parte-tabla': () => copiarTabla(), 'parte-gmail': () => { copiarTabla(); },
   'parte-png': async () => { const cv = await parteImagen(mEnvio.o.datos), a = document.createElement('a'); a.href = URL.createObjectURL(await pngDe(cv)); a.download = `Parte_diario_${ui.fecha}.png`; document.body.appendChild(a); a.click(); a.remove(); },
   'parte-img': async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': parteImagen(mEnvio.o.datos).then(pngDe) })]); toast('Imagen copiada: pégala en el correo', 'ok'); } catch { toast('Este navegador no permite copiar imágenes aquí: usa «Descargar imagen» y adjúntala', 'err'); } }, boletin: () => mEnvio('Boletín semanal', boletin(lunes())),

@@ -32,6 +32,7 @@ export const EDIFICIOS = {
 };
 export const MATRIZ_CAT = { TALLER_ACLE: 'Talleres ACLE', REFORZAMIENTO: 'Reforzamientos', REUNION_FIJA: 'Reuniones fijas' };
 export const INSPECTORIA = 'Inspectoría + Guía pedagógica';
+export const NO_REQUIERE = 'No requiere'; // el tramo no necesita reemplazo (p. ej., curso en salida): no aparece en el parte diario
 
 // ---------- tiempo ----------
 export function tmin(s) { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : NaN; }
@@ -115,7 +116,7 @@ export function tramos(a, fecha) {
 /** Conteo de reemplazos realizados por persona en el mes (equidad). */
 export function conteoMes(fecha) {
   const mes = fecha.slice(0, 7), n = {};
-  for (const a of all('ausencias')) { const c = cob(a); for (const k in c) if (k.slice(0, 7) === mes && c[k] && c[k] !== INSPECTORIA) n[c[k]] = (n[c[k]] || 0) + 1; }
+  for (const a of all('ausencias')) { const c = cob(a); for (const k in c) if (k.slice(0, 7) === mes && c[k] && c[k] !== INSPECTORIA && c[k] !== NO_REQUIERE) n[c[k]] = (n[c[k]] || 0) + 1; }
   return n;
 }
 // Prioridad para cubrir (colores en la app): 1 PIE que está en ese curso a esa hora (verde) · 2 PIE que trabaja con

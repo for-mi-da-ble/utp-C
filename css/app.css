@@ -330,3 +330,6 @@ h4.cob-g.g-verde { color: #14692b; } h4.cob-g.g-amarillo { color: #6e5100; } h4.
 /* Parte diario: vista previa de la tabla que se pega en el correo */
 .parte-prev { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; max-height: 60vh; overflow: auto; color: #1b2536; }
 .parte-prev table { min-width: 640px; }
+.parte-add { border: 1px dashed var(--line); border-radius: 14px; padding: 10px 14px; margin: 0 0 12px; background: var(--soft); }
+.parte-add summary { cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 6px; list-style: none; } .parte-add summary::-webkit-details-marker { display: none; }
+.parte-add .form { margin-top: 10px; } .parte-add .btn { margin-top: 4px; }
