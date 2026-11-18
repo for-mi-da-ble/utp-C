@@ -103,85 +103,104 @@ const grupo = (k, titulo, lineas) => lineas.length ? `<div class="ev grp k-${k}"
 const linEv = e => `<div class="gl" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<b>${esc(String(e.hora).replace('-', '–'))}</b> ` : ''}${esc(e.titulo)}${detalleHTML(e.detalle)}</div>`;
 const linMat = (m, quita) => `<div class="gl" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'}><b>${m.ini}</b> ${esc(quita ? m.titulo.replace(quita, '') : m.titulo)}${m.sala_id ? ` <span class="lug">(${esc(L.nombreEspacio(m.sala_id))})</span>` : ''}</div>`;
 
-// Parte diario: un solo modelo de datos que se entrega como tabla (para pegar en Gmail), imagen PNG y texto (WhatsApp).
-function parteDatos(f) {
-  const r = L.resumenDia(f), w = L.semanaDe(f), act = [], aus = [];
-  for (const e of r.eventos) act.push([e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada'),
-    { t: e.titulo, b: 1, sub: lineasDet(e.detalle, '') }, [e.cursos, e.espacio_id ? L.nombreEspacio(e.espacio_id) : ''].filter(Boolean).join(' · ')]);
-  for (const a of r.aus) {
-    const tr = L.tramos(a, f), mot = (L.AUS_TIPOS[a.tipo] || a.tipo || '') + (L.textoTramo(a.jornada) ? ' (' + L.textoTramo(a.jornada) + ')' : '');
-    if (!tr.length) aus.push([{ t: a.nombre, b: 1 }, mot, { t: 'Sin clases lectivas afectadas', span: 4, mut: 1 }]);
-    tr.forEach((t, i) => aus.push([i ? '' : { t: a.nombre, b: 1 }, i ? '' : mot, `${t.ini}–${t.fin}`, (t.b.curso_id ? t.b.curso_id + ' · ' + materia(t.b) : t.b.detalle || ''),
-      L.nombreEspacio(t.b.sala_id) || '', t.cubre ? { t: t.cubre, ok: 1 } : { t: t.parcial ? 'EN PARTE' : 'POR DEFINIR', b: 1, mal: 1 }]));
-  }
-  return { titulo: 'Parte diario UTP', colegio: CFG.COLEGIO || '', fecha: L.fechaLarga(f), semana: L.etiquetaSemana(w), resumen: { aus: r.aus.length, afectados: r.afectados, cubiertos: r.cubiertos },
-    secciones: [{ t: 'Actividades del día', cols: [['Hora', 13], ['Actividad', 57], ['Cursos / lugar', 30]], filas: act, vacio: 'Sin actividades programadas.' },
-      { t: 'Ausencias y reemplazos', cols: [['Docente', 19], ['Motivo', 15], ['Horario', 12], ['Curso y asignatura', 24], ['Sala', 12], ['Reemplazo', 18]], filas: aus, vacio: 'Sin ausencias informadas.' }],
-    cumples: L.cumplesEntre(f, f).map(c => c.nombre) };
+// Parte diario (formato de "situaciones del día" de Dirección): ausencias agrupadas por tipo con su reemplazo y los
+// talleres del día. Un solo modelo de datos que se entrega como tabla (para pegar en Gmail), imagen PNG y texto (WhatsApp).
+const GRUPOS_AUS = [['LICENCIAS MÉDICAS', t => t === 'LICENCIA'], ['ADMINISTRATIVOS', t => t === 'ADMINISTRATIVO' || t === 'ADMIN_MEDIO'], ['OTRAS AUSENCIAS', () => true]];
+/** "Leyton Opazo Paula Javiera" (docentes: apellidos primero) → "Paula Leyton"; "Romina Rodríguez Lobos" → "Romina Rodríguez". */
+function nombreParte(n) {
+  const f = funcPorNombre(n), p = String(n || '').trim().split(/\s+/); if (!f || p.length < 2) return String(n || '');
+  return /docente/i.test(f.estamento || '') ? `${p[p.length > 2 ? 2 : 1]} ${p[0]}` : `${p[0]} ${p[1]}`;
 }
-const celda = c => (c && typeof c === 'object') ? c : { t: c == null ? '' : String(c) };
-function parteHTML(d) {
-  const F = 'font-family:Arial,Helvetica,sans-serif;', bd = 'border:1px solid #c9d3e2;';
-  const td = c => { c = celda(c); return `<td${c.span ? ` colspan="${c.span}"` : ''} style="${F}${bd}padding:6px 8px;font-size:13px;vertical-align:top;${c.b ? 'font-weight:bold;' : ''}${c.mal ? 'color:#b3261e;background:#fdecec;' : ''}${c.ok ? 'color:#14692b;background:#e7f6ea;' : ''}${c.mut ? 'color:#5c6a80;' : ''}">${esc(c.t)}${c.sub && c.sub.length ? `<div style="font-weight:normal;color:#5c6a80;font-size:12px">${c.sub.map(esc).join('<br>')}</div>` : ''}</td>`; };
-  let h = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px;${F}"><tr><td style="background:#204070;color:#fff;padding:12px 14px;${F}"><div style="font-size:18px;font-weight:bold">${esc(d.titulo)} · ${esc(d.colegio)}</div><div style="font-size:13px;color:#dbe4f2">${esc(d.fecha)} · ${esc(d.semana)}</div></td></tr>`;
-  h += `<tr><td style="padding:8px 0;font-size:13px;${F}color:#1b2536">Ausencias: <b>${d.resumen.aus}</b> · Bloques afectados: <b>${d.resumen.afectados}</b> · Cubiertos: <b>${d.resumen.cubiertos}</b>${d.resumen.afectados - d.resumen.cubiertos ? ` · <b style="color:#b3261e">Por definir: ${d.resumen.afectados - d.resumen.cubiertos}</b>` : ''}</td></tr></table>`;
-  for (const s of d.secciones) {
-    h += `<p style="${F}font-size:14px;font-weight:bold;color:#204070;margin:14px 0 6px">${esc(s.t)}</p><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px;${F}"><tr>${s.cols.map(([n, w]) => `<th style="${F}${bd}background:#eef2f8;color:#204070;padding:6px 8px;font-size:12px;text-align:left;width:${w}%">${esc(n)}</th>`).join('')}</tr>`;
-    h += s.filas.length ? s.filas.map(r => `<tr>${r.map(td).join('')}</tr>`).join('') : `<tr>${td({ t: s.vacio, span: s.cols.length, mut: 1 })}</tr>`;
-    h += '</table>';
+/** "3° MEDIO C" → "3°MC", "4° BÁSICO B" → "4°B", "PRE KINDER A" → "PKA", "KINDER B" → "KB". */
+function cursoCorto(c) {
+  const n = L.norm(c), m = /^(\d)° ?(medio|basico)? ?([a-d])?$/.exec(n);
+  if (m) return `${m[1]}°${m[2] === 'medio' ? 'M' : ''}${(m[3] || '').toUpperCase()}`;
+  const k = /^(pre ?kinder|kinder) ?([a-d])?$/.exec(n); if (k) return (k[1].startsWith('pre') ? 'PK' : 'K') + (k[2] || '').toUpperCase();
+  return String(c || '');
+}
+function parteDatos(f) {
+  const r = L.resumenDia(f), w = L.semanaDe(f), grupos = [];
+  const usados = new Set();
+  for (const [t, es] of GRUPOS_AUS) {
+    const filas = [];
+    for (const a of r.aus) {
+      if (usados.has(a.id) || !es(a.tipo)) continue; usados.add(a.id);
+      const tr = L.tramos(a, f), sub = [t === 'OTRAS AUSENCIAS' || a.tipo === 'ADMIN_MEDIO' ? L.AUS_TIPOS[a.tipo] || a.tipo : '', L.textoTramo(a.jornada)].filter(Boolean).join(' · ');
+      const nombres = [...new Set(tr.map(x => x.cubre))];
+      let rem;
+      if (!tr.length) rem = [{ t: a.func_id ? 'Sin clases que cubrir' : 'Sin reemplazo', mut: 1 }];
+      else if (tr.length > 1 && nombres.length === 1 && nombres[0]) rem = [{ t: nombreParte(nombres[0]) }];
+      else rem = tr.map(x => ({ t: `${x.ini}–${x.fin} (${x.b.curso_id ? cursoCorto(x.b.curso_id) : x.b.detalle || '—'}) `, fin: x.cubre ? nombreParte(x.cubre) : x.parcial ? 'EN PARTE' : 'POR DEFINIR', mal: !x.cubre }));
+      filas.push([{ t: nombreParte(a.nombre), sub: sub ? [sub] : [] }, rem]);
+    }
+    if (filas.length) grupos.push({ t, filas });
   }
-  if (d.cumples.length) h += `<p style="${F}font-size:13px;margin:14px 0 0">🎂 <b>Cumpleaños de hoy:</b> ${esc(d.cumples.join(', '))}</p>`;
-  return h + `<p style="${F}font-size:12px;color:#5c6a80;margin:14px 0 0">Unidad Técnico-Pedagógica</p>`;
+  // talleres del día (matriz fija); se marcan CANCELADO si un evento del día lo suspende
+  const evs = r.eventos.filter(e => /\b(cancelad|suspendid|suspension)/.test(L.norm(e.titulo + ' ' + (e.detalle || ''))));
+  const tal = L.rutinaDe(f, { TALLER_ACLE: 1 }).map(m => { const clave = L.norm(L.sinTaller ? L.sinTaller(m.titulo) : m.titulo).split(/\s*[-–]\s*/)[0];
+    const canc = clave.length > 3 && evs.some(e => L.norm(e.titulo + ' ' + (e.detalle || '')).includes(clave));
+    return [{ t: canc ? 'CANCELADO' : `${m.ini}–${m.fin}`, b: canc, mal: canc }, [{ t: m.titulo }]]; });
+  if (tal.length) grupos.push({ t: 'TALLERES', filas: tal });
+  return { titulo: 'Parte diario', colegio: CFG.COLEGIO || '', fecha: L.fechaLarga(f), semana: L.etiquetaSemana(w), grupos, vacio: !r.aus.length };
+}
+// Celdas: la 1ª es un objeto {t, sub}; la 2ª es una lista de líneas {t, fin?, mal?, mut?}.
+function parteHTML(d) {
+  const F = 'font-family:Arial,Helvetica,sans-serif;', bd = 'border:1px solid #9aa6b8;', pad = 'padding:7px 10px;vertical-align:top;font-size:13.5px;';
+  const lin = l => `<div>${esc(l.t)}${l.fin ? (l.mal ? `<b style="color:#b3261e">${esc(l.fin)}</b>` : esc(l.fin)) : ''}</div>`;
+  let h = `<p style="${F}font-size:15px;margin:0 0 8px"><b>${esc(d.titulo)} · ${esc(d.colegio)}</b><br><span style="color:#444">${esc(d.fecha)} · ${esc(d.semana)}</span></p>`;
+  h += `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:820px;${F}"><tr><td style="${bd}${pad}width:24%"></td><th style="${F}${bd}${pad}text-align:left;width:30%">Ausente</th><th style="${F}${bd}${pad}text-align:left">Reemplazo</th></tr>`;
+  if (d.vacio) h += `<tr><td style="${F}${bd}${pad}font-weight:bold">AUSENCIAS</td><td colspan="2" style="${F}${bd}${pad}">Sin ausencias informadas.</td></tr>`;
+  for (const g of d.grupos) g.filas.forEach(([a, rem], i) => {
+    h += `<tr>${i ? '' : `<td rowspan="${g.filas.length}" style="${F}${bd}${pad}font-weight:bold">${esc(g.t)}</td>`}<td style="${F}${bd}${pad}${a.b ? 'font-weight:bold;' : ''}${a.mal ? 'color:#b3261e;' : ''}">${esc(a.t)}${a.sub && a.sub.length ? `<div style="font-size:12px;color:#666">${a.sub.map(esc).join('<br>')}</div>` : ''}</td><td style="${F}${bd}${pad}${rem.some(l => l.mut) ? 'color:#666;' : ''}">${rem.map(lin).join('')}</td></tr>`;
+  });
+  return h + '</table>';
 }
 function parteTexto(d) {
-  const ln = [`PARTE DIARIO UTP — ${d.colegio}`, `${d.fecha} · ${d.semana}`];
-  for (const s of d.secciones) { ln.push('', s.t.toUpperCase()); if (!s.filas.length) ln.push('• ' + s.vacio);
-    for (const r of s.filas) { const c = r.map(celda); ln.push((c[0].t ? '• ' : '   ') + c.map(x => x.t).filter(Boolean).join(' · ')); for (const x of c) for (const l of x.sub || []) ln.push('     ' + l); } }
-  if (d.cumples.length) ln.push('', 'Cumpleaños de hoy: ' + d.cumples.join(', '));
-  ln.push('', 'Unidad Técnico-Pedagógica'); return ln.join('\n');
+  const ln = [`PARTE DIARIO — ${d.colegio}`, `${d.fecha} · ${d.semana}`];
+  if (d.vacio) ln.push('', 'Sin ausencias informadas.');
+  for (const g of d.grupos) { ln.push('', g.t); for (const [a, rem] of g.filas) { if (rem.length === 1) ln.push(`• ${a.t}${a.sub && a.sub[0] ? ' (' + a.sub[0] + ')' : ''}: ${rem[0].t}${rem[0].fin || ''}`); else { ln.push(`• ${a.t}${a.sub && a.sub[0] ? ' (' + a.sub[0] + ')' : ''}:`); for (const l of rem) ln.push(`     ${l.t}${l.fin || ''}`); } } }
+  return ln.join('\n');
 }
-function parteDiario(f) { const d = parteDatos(f); return { datos: d, texto: parteTexto(d), html: parteHTML(d), asunto: `Parte diario UTP · ${d.fecha}` }; }
+function parteDiario(f) { const d = parteDatos(f); return { datos: d, texto: parteTexto(d), html: parteHTML(d), asunto: `Parte diario · ${d.fecha}` }; }
 /** Dibuja el parte en un canvas (imagen para pegar en el correo o descargar). */
 async function parteImagen(d) {
   try { await document.fonts.load('600 14px Outfit'); await document.fonts.load('400 14px Outfit'); } catch { }
   const FN = document.fonts && document.fonts.check('14px Outfit') ? 'Outfit, Arial, sans-serif' : 'Arial, sans-serif';
-  const W = 1100, P = 28, S = 2, cv = document.createElement('canvas'), x = cv.getContext('2d');
+  const W = 980, P = 26, S = 2, cv = document.createElement('canvas'), x = cv.getContext('2d'), LH = 20, SL = 16, PAD = 9;
+  const ws = [0.24, 0.30, 0.46].map(k => (W - 2 * P) * k), X = [P, P + ws[0], P + ws[0] + ws[1]];
   const font = (sz, b) => { x.font = `${b ? 600 : 400} ${sz}px ${FN}`; };
-  const wrap = (t, w, sz, b) => { font(sz, b); const out = []; for (const par of String(t).split('\n')) { let l = ''; for (const wd of par.split(/\s+/)) { const k = l ? l + ' ' + wd : wd; if (x.measureText(k).width > w && l) { out.push(l); l = wd; } else l = k; } out.push(l); } return out; };
-  // 1) medir
-  const lay = [], LH = 18, SL = 16; let y = P + 74 + 30;
-  for (const s of d.secciones) {
-    const ws = s.cols.map(([, w]) => (W - 2 * P) * w / 100), filas = s.filas.length ? s.filas : [[{ t: s.vacio, span: s.cols.length, mut: 1 }]];
-    const rows = filas.map(r => { let ci = 0; const cs = r.map(c0 => { const c = celda(c0), span = c.span || 1, w = ws.slice(ci, ci + span).reduce((a, b) => a + b, 0), x0 = ws.slice(0, ci).reduce((a, b) => a + b, 0); ci += span;
-      const ls = wrap(c.t, w - 16, 14, c.b), sub = (c.sub || []).flatMap(l => wrap(l, w - 16, 12.5)); return { c, x0, w, ls, sub, h: ls.length * LH + sub.length * SL }; });
-      return { cs, h: Math.max(...cs.map(c => c.h)) + 14 }; });
-    lay.push({ s, ws, rows, y0: y }); y += 34 + 30 + rows.reduce((a, r) => a + r.h, 0) + 10;
+  const wrap = (t, w, sz, b) => { font(sz, b); const out = []; let l = ''; for (const wd of String(t).split(/\s+/)) { const k = l ? l + ' ' + wd : wd; if (x.measureText(k).width > w && l) { out.push(l); l = wd; } else l = k; } out.push(l); return out; };
+  const filas = d.vacio ? [{ g: 'AUSENCIAS', first: 1, n: 1, a: { t: 'Sin ausencias informadas.' }, rem: [] }] : [];
+  for (const g of d.grupos) g.filas.forEach(([a, rem], i) => filas.push({ g: g.t, first: !i, n: g.filas.length, a, rem }));
+  // medir
+  for (const f of filas) {
+    f.aL = wrap(f.a.t, ws[1] - 2 * PAD, 15, f.a.b); f.sL = (f.a.sub || []).flatMap(s => wrap(s, ws[1] - 2 * PAD, 12.5));
+    f.rL = f.rem.flatMap(l => wrap(l.t + (l.fin || ''), ws[2] - 2 * PAD, 15).map((t, i, arr) => ({ t, l, ult: i === arr.length - 1 })));
+    f.h = Math.max(f.aL.length * LH + f.sL.length * SL, f.rL.length * LH, LH) + 2 * PAD;
   }
-  const cumL = d.cumples.length ? wrap('Cumpleaños de hoy: ' + d.cumples.join(', '), W - 2 * P, 14) : [];
-  const H = y + 12 + (cumL.length ? cumL.length * 20 + 12 : 0) + 34;
+  const gL = {}; for (const f of filas) if (f.first) gL[f.g] = wrap(f.g, ws[0] - 2 * PAD, 15, 1);
+  const top = P + 62, HH = 36, H = top + HH + filas.reduce((a, f) => a + f.h, 0) + P;
   cv.width = W * S; cv.height = H * S; x.scale(S, S); x.textBaseline = 'top';
-  // 2) dibujar
   x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-  x.fillStyle = '#204070'; x.beginPath(); x.roundRect ? x.roundRect(P, P, W - 2 * P, 64, 12) : x.rect(P, P, W - 2 * P, 64); x.fill();
-  x.fillStyle = '#fff'; font(21, 1); x.fillText(`${d.titulo} · ${d.colegio}`, P + 18, P + 12); x.fillStyle = '#dbe4f2'; font(14); x.fillText(`${d.fecha} · ${d.semana}`, P + 18, P + 40);
-  const pend = d.resumen.afectados - d.resumen.cubiertos; font(14); x.fillStyle = '#1b2536';
-  let rx = P; for (const [k, v, col] of [['Ausencias', d.resumen.aus], ['Bloques afectados', d.resumen.afectados], ['Cubiertos', d.resumen.cubiertos, '#14692b']].concat(pend ? [['Por definir', pend, '#b3261e']] : [])) {
-    font(14); x.fillStyle = '#5c6a80'; x.fillText(k + ': ', rx, P + 78); rx += x.measureText(k + ': ').width; font(14, 1); x.fillStyle = col || '#1b2536'; x.fillText(String(v), rx, P + 78); rx += x.measureText(String(v)).width + 22; }
-  for (const L0 of lay) {
-    let yy = L0.y0 + 10; font(16, 1); x.fillStyle = '#204070'; x.fillText(L0.s.t, P, yy); yy += 30;
-    x.fillStyle = '#eef2f8'; x.fillRect(P, yy, W - 2 * P, 30); font(12.5, 1); x.fillStyle = '#204070'; let cx = P;
-    L0.s.cols.forEach(([n], i) => { x.fillText(n.toUpperCase(), cx + 8, yy + 9); cx += L0.ws[i]; });
-    x.strokeStyle = '#c9d3e2'; x.lineWidth = 1; x.strokeRect(P + .5, yy + .5, W - 2 * P - 1, 30); yy += 30;
-    for (const r of L0.rows) {
-      for (const k of r.cs) { const c = k.c; if (c.mal || c.ok) { x.fillStyle = c.mal ? '#fdecec' : '#e7f6ea'; x.fillRect(P + k.x0, yy, k.w, r.h); }
-        let ty = yy + 7; font(14, c.b); x.fillStyle = c.mal ? '#b3261e' : c.ok ? '#14692b' : c.mut ? '#5c6a80' : '#1b2536'; for (const l of k.ls) { x.fillText(l, P + k.x0 + 8, ty); ty += LH; }
-        font(12.5); x.fillStyle = '#5c6a80'; for (const l of k.sub) { x.fillText(l, P + k.x0 + 8, ty); ty += SL; }
-        x.strokeRect(P + k.x0 + .5, yy + .5, k.w, r.h); }
-      yy += r.h;
-    }
-  }
-  let yc = y + 12; if (cumL.length) { font(14); x.fillStyle = '#1b2536'; for (const l of cumL) { x.fillText(l, P, yc); yc += 20; } yc += 12; }
-  font(12.5); x.fillStyle = '#5c6a80'; x.fillText('Unidad Técnico-Pedagógica', P, yc);
+  x.fillStyle = '#1b2536'; font(19, 1); x.fillText(`${d.titulo} · ${d.colegio}`, P, P); x.fillStyle = '#555'; font(14); x.fillText(`${d.fecha} · ${d.semana}`, P, P + 28);
+  x.strokeStyle = '#9aa6b8'; x.lineWidth = 1;
+  // encabezado
+  font(15, 1); x.fillStyle = '#1b2536'; x.fillText('Ausente', X[1] + PAD, top + 10); x.fillText('Reemplazo', X[2] + PAD, top + 10);
+  [0, 1, 2].forEach(i => x.strokeRect(X[i] + .5, top + .5, ws[i], HH));
+  let y = top + HH;
+  filas.forEach((f, k) => {
+    if (f.first) { let gh = 0; for (let j = k; j < k + f.n; j++) gh += filas[j].h; x.strokeRect(X[0] + .5, y + .5, ws[0], gh); font(15, 1); x.fillStyle = '#1b2536'; gL[f.g].forEach((l, i) => x.fillText(l, X[0] + PAD, y + PAD + i * LH)); }
+    x.strokeRect(X[1] + .5, y + .5, ws[1], f.h); x.strokeRect(X[2] + .5, y + .5, ws[2], f.h);
+    let ty = y + PAD; font(15, f.a.b); x.fillStyle = f.a.mal ? '#b3261e' : '#1b2536'; for (const l of f.aL) { x.fillText(l, X[1] + PAD, ty); ty += LH; }
+    font(12.5); x.fillStyle = '#666'; for (const l of f.sL) { x.fillText(l, X[1] + PAD, ty); ty += SL; }
+    ty = y + PAD;
+    for (const r of f.rL) { // la parte final (nombre o POR DEFINIR) va en rojo si falta reemplazo
+      const fin = r.l.fin || '', cut = r.ult && fin && r.t.endsWith(fin) ? r.t.length - fin.length : r.t.length;
+      font(15); x.fillStyle = r.l.mut ? '#666' : '#1b2536'; x.fillText(r.t.slice(0, cut), X[2] + PAD, ty);
+      if (cut < r.t.length) { const w0 = x.measureText(r.t.slice(0, cut)).width; font(15, r.l.mal); x.fillStyle = r.l.mal ? '#b3261e' : '#1b2536'; x.fillText(r.t.slice(cut), X[2] + PAD + w0, ty); }
+      ty += LH; }
+    y += f.h;
+  });
   return cv;
 }
 const pngDe = cv => new Promise(ok => cv.toBlob(ok, 'image/png'));
