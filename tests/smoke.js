@@ -19,7 +19,7 @@ const { chromium } = require('playwright');
   // evento
   await p.click('[data-a=nuevo-ev]'); await p.fill('#f_titulo', 'Ensayo SIMCE 2° medios'); await p.fill('#f_hora', '09:45-11:15'); await p.click('[data-a=mas-det]'); await p.fill('#f_cursos', '2° MEDIO A, 2° MEDIO B'); await p.selectOption('#f_espacio_id', { label: 'Gimnasio Matriz' }); await p.waitForTimeout(100); await shot('03-modal-evento'); await p.click('[data-a=guardar]');
   await shot('01-hoy');
-  await p.click('[data-a=parte]'); await shot('04-parte'); console.log((await p.inputValue('.mono')).split('\n').slice(0, 14).join('\n')); await p.keyboard.press('Escape');
+  await p.click('[data-a=parte]'); await shot('04-parte'); console.log((await p.innerText('.parte-prev')).split('\n').slice(0, 14).join('\n')); await p.keyboard.press('Escape');
   for (const v of ['semana', 'calendario', 'horarios', 'espacios']) { await p.goto('http://localhost:8765/#' + v); await shot('05-' + v); }
   await p.goto('http://localhost:8765/#horarios'); await p.click('[data-a=ciclo][data-v="Enseñanza Media"]'); await p.click('[data-a=curso][data-v="2° MEDIO B"]'); await shot('06-curso');
   await p.click('[data-a=htab][data-v=docente]'); await shot('07-docente'); await p.click('[data-a=htab][data-v=sabana]'); await shot('08-sabana');

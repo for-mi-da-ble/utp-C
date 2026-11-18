@@ -103,27 +103,101 @@ const grupo = (k, titulo, lineas) => lineas.length ? `<div class="ev grp k-${k}"
 const linEv = e => `<div class="gl" ${ed() ? `data-drag="ev:${e.id}"` : ''} data-a="edit-ev" data-id="${e.id}">${e.hora && !horaEnTitulo(e) ? `<b>${esc(String(e.hora).replace('-', '–'))}</b> ` : ''}${esc(e.titulo)}${detalleHTML(e.detalle)}</div>`;
 const linMat = (m, quita) => `<div class="gl" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'}><b>${m.ini}</b> ${esc(quita ? m.titulo.replace(quita, '') : m.titulo)}${m.sala_id ? ` <span class="lug">(${esc(L.nombreEspacio(m.sala_id))})</span>` : ''}</div>`;
 
-function parteDiario(f) {
-  const r = L.resumenDia(f), w = L.semanaDe(f), ln = [`PARTE DIARIO UTP — ${CFG.COLEGIO || ''}`, `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, ''];
-  let html = `<p><b>Parte diario UTP — ${esc(CFG.COLEGIO || '')}</b><br>${esc(L.fechaLarga(f))} · ${esc(L.etiquetaSemana(w))}</p>`;
-  ln.push('ACTIVIDADES DEL DÍA'); html += '<p><b>Actividades del día</b></p><ul>';
-  if (!r.eventos.length) { ln.push('• Sin actividades programadas.'); html += '<li>Sin actividades programadas.</li>'; }
-  for (const e of r.eventos) { const t = `${e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada')} · ${e.titulo}${e.cursos ? ' (' + e.cursos + ')' : ''}${e.espacio_id ? ' — ' + L.nombreEspacio(e.espacio_id) : ''}`; const nt = lineasDet(e.detalle, ''); ln.push('• ' + t, ...nt.map(x => '     ' + x)); html += `<li>${esc(t)}${nt.length ? '<br><small>' + nt.map(esc).join('<br>') + '</small>' : ''}</li>`; }
-  ln.push('', 'AUSENCIAS Y REEMPLAZOS'); html += '</ul><p><b>Ausencias y reemplazos</b></p>';
-  if (!r.aus.length) { ln.push('• Sin ausencias informadas.'); html += '<p>Sin ausencias informadas.</p>'; }
-  else {
-    html += '<table border="1" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px"><tr style="background:#eef0f3"><th>Docente</th><th>Motivo</th><th>Bloque</th><th>Curso</th><th>Sala</th><th>Cubre</th></tr>';
-    for (const a of r.aus) {
-      const af = L.afectados(a, f), mot = L.AUS_TIPOS[a.tipo] + (L.textoTramo(a.jornada) ? ' (' + L.textoTramo(a.jornada) + ')' : '');
-      ln.push(`• ${a.nombre} — ${mot}`);
-      if (!af.length) html += `<tr><td>${esc(a.nombre)}</td><td>${esc(mot)}</td><td colspan="4">Sin clases lectivas afectadas</td></tr>`;
-      af.forEach((x, i) => { const c = x.cubre || 'POR DEFINIR'; ln.push(`   ${x.cod} ${rango(x.b)} · ${x.b.curso_id} · ${materia(x.b)} → ${c}`); html += `<tr>${i ? '' : `<td rowspan="${af.length}">${esc(a.nombre)}</td><td rowspan="${af.length}">${esc(mot)}</td>`}<td>${x.cod} ${rango(x.b)}</td><td>${esc(x.b.curso_id)} · ${esc(materia(x.b))}</td><td>${esc(L.nombreEspacio(x.b.sala_id))}</td><td>${x.cubre ? esc(c) : '<b>POR DEFINIR</b>'}</td></tr>`; });
-    }
-    html += '</table>';
+// Parte diario: un solo modelo de datos que se entrega como tabla (para pegar en Gmail), imagen PNG y texto (WhatsApp).
+function parteDatos(f) {
+  const r = L.resumenDia(f), w = L.semanaDe(f), act = [], aus = [];
+  for (const e of r.eventos) act.push([e.hora || (e.jornada === 'TARDE' ? 'Tarde' : e.jornada === 'MANANA' ? 'Mañana' : 'Jornada'),
+    { t: e.titulo, b: 1, sub: lineasDet(e.detalle, '') }, [e.cursos, e.espacio_id ? L.nombreEspacio(e.espacio_id) : ''].filter(Boolean).join(' · ')]);
+  for (const a of r.aus) {
+    const tr = L.tramos(a, f), mot = (L.AUS_TIPOS[a.tipo] || a.tipo || '') + (L.textoTramo(a.jornada) ? ' (' + L.textoTramo(a.jornada) + ')' : '');
+    if (!tr.length) aus.push([{ t: a.nombre, b: 1 }, mot, { t: 'Sin clases lectivas afectadas', span: 4, mut: 1 }]);
+    tr.forEach((t, i) => aus.push([i ? '' : { t: a.nombre, b: 1 }, i ? '' : mot, `${t.ini}–${t.fin}`, (t.b.curso_id ? t.b.curso_id + ' · ' + materia(t.b) : t.b.detalle || ''),
+      L.nombreEspacio(t.b.sala_id) || '', t.cubre ? { t: t.cubre, ok: 1 } : { t: t.parcial ? 'EN PARTE' : 'POR DEFINIR', b: 1, mal: 1 }]));
   }
-  const cum = L.cumplesEntre(f, f); if (cum.length) { const t = 'Cumpleaños de hoy: ' + cum.map(c => c.nombre).join(', '); ln.push('', t); html += `<p>🎂 ${esc(t)}</p>`; }
-  ln.push('', 'Unidad Técnico-Pedagógica'); html += '<p>Unidad Técnico-Pedagógica</p>';
-  return { texto: ln.join('\n'), html, asunto: `Parte diario UTP · ${L.fechaLarga(f)}` };
+  return { titulo: 'Parte diario UTP', colegio: CFG.COLEGIO || '', fecha: L.fechaLarga(f), semana: L.etiquetaSemana(w), resumen: { aus: r.aus.length, afectados: r.afectados, cubiertos: r.cubiertos },
+    secciones: [{ t: 'Actividades del día', cols: [['Hora', 13], ['Actividad', 57], ['Cursos / lugar', 30]], filas: act, vacio: 'Sin actividades programadas.' },
+      { t: 'Ausencias y reemplazos', cols: [['Docente', 19], ['Motivo', 15], ['Horario', 12], ['Curso y asignatura', 24], ['Sala', 12], ['Reemplazo', 18]], filas: aus, vacio: 'Sin ausencias informadas.' }],
+    cumples: L.cumplesEntre(f, f).map(c => c.nombre) };
+}
+const celda = c => (c && typeof c === 'object') ? c : { t: c == null ? '' : String(c) };
+function parteHTML(d) {
+  const F = 'font-family:Arial,Helvetica,sans-serif;', bd = 'border:1px solid #c9d3e2;';
+  const td = c => { c = celda(c); return `<td${c.span ? ` colspan="${c.span}"` : ''} style="${F}${bd}padding:6px 8px;font-size:13px;vertical-align:top;${c.b ? 'font-weight:bold;' : ''}${c.mal ? 'color:#b3261e;background:#fdecec;' : ''}${c.ok ? 'color:#14692b;background:#e7f6ea;' : ''}${c.mut ? 'color:#5c6a80;' : ''}">${esc(c.t)}${c.sub && c.sub.length ? `<div style="font-weight:normal;color:#5c6a80;font-size:12px">${c.sub.map(esc).join('<br>')}</div>` : ''}</td>`; };
+  let h = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px;${F}"><tr><td style="background:#204070;color:#fff;padding:12px 14px;${F}"><div style="font-size:18px;font-weight:bold">${esc(d.titulo)} · ${esc(d.colegio)}</div><div style="font-size:13px;color:#dbe4f2">${esc(d.fecha)} · ${esc(d.semana)}</div></td></tr>`;
+  h += `<tr><td style="padding:8px 0;font-size:13px;${F}color:#1b2536">Ausencias: <b>${d.resumen.aus}</b> · Bloques afectados: <b>${d.resumen.afectados}</b> · Cubiertos: <b>${d.resumen.cubiertos}</b>${d.resumen.afectados - d.resumen.cubiertos ? ` · <b style="color:#b3261e">Por definir: ${d.resumen.afectados - d.resumen.cubiertos}</b>` : ''}</td></tr></table>`;
+  for (const s of d.secciones) {
+    h += `<p style="${F}font-size:14px;font-weight:bold;color:#204070;margin:14px 0 6px">${esc(s.t)}</p><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px;${F}"><tr>${s.cols.map(([n, w]) => `<th style="${F}${bd}background:#eef2f8;color:#204070;padding:6px 8px;font-size:12px;text-align:left;width:${w}%">${esc(n)}</th>`).join('')}</tr>`;
+    h += s.filas.length ? s.filas.map(r => `<tr>${r.map(td).join('')}</tr>`).join('') : `<tr>${td({ t: s.vacio, span: s.cols.length, mut: 1 })}</tr>`;
+    h += '</table>';
+  }
+  if (d.cumples.length) h += `<p style="${F}font-size:13px;margin:14px 0 0">🎂 <b>Cumpleaños de hoy:</b> ${esc(d.cumples.join(', '))}</p>`;
+  return h + `<p style="${F}font-size:12px;color:#5c6a80;margin:14px 0 0">Unidad Técnico-Pedagógica</p>`;
+}
+function parteTexto(d) {
+  const ln = [`PARTE DIARIO UTP — ${d.colegio}`, `${d.fecha} · ${d.semana}`];
+  for (const s of d.secciones) { ln.push('', s.t.toUpperCase()); if (!s.filas.length) ln.push('• ' + s.vacio);
+    for (const r of s.filas) { const c = r.map(celda); ln.push((c[0].t ? '• ' : '   ') + c.map(x => x.t).filter(Boolean).join(' · ')); for (const x of c) for (const l of x.sub || []) ln.push('     ' + l); } }
+  if (d.cumples.length) ln.push('', 'Cumpleaños de hoy: ' + d.cumples.join(', '));
+  ln.push('', 'Unidad Técnico-Pedagógica'); return ln.join('\n');
+}
+function parteDiario(f) { const d = parteDatos(f); return { datos: d, texto: parteTexto(d), html: parteHTML(d), asunto: `Parte diario UTP · ${d.fecha}` }; }
+/** Dibuja el parte en un canvas (imagen para pegar en el correo o descargar). */
+async function parteImagen(d) {
+  try { await document.fonts.load('600 14px Outfit'); await document.fonts.load('400 14px Outfit'); } catch { }
+  const FN = document.fonts && document.fonts.check('14px Outfit') ? 'Outfit, Arial, sans-serif' : 'Arial, sans-serif';
+  const W = 1100, P = 28, S = 2, cv = document.createElement('canvas'), x = cv.getContext('2d');
+  const font = (sz, b) => { x.font = `${b ? 600 : 400} ${sz}px ${FN}`; };
+  const wrap = (t, w, sz, b) => { font(sz, b); const out = []; for (const par of String(t).split('\n')) { let l = ''; for (const wd of par.split(/\s+/)) { const k = l ? l + ' ' + wd : wd; if (x.measureText(k).width > w && l) { out.push(l); l = wd; } else l = k; } out.push(l); } return out; };
+  // 1) medir
+  const lay = [], LH = 18, SL = 16; let y = P + 74 + 30;
+  for (const s of d.secciones) {
+    const ws = s.cols.map(([, w]) => (W - 2 * P) * w / 100), filas = s.filas.length ? s.filas : [[{ t: s.vacio, span: s.cols.length, mut: 1 }]];
+    const rows = filas.map(r => { let ci = 0; const cs = r.map(c0 => { const c = celda(c0), span = c.span || 1, w = ws.slice(ci, ci + span).reduce((a, b) => a + b, 0), x0 = ws.slice(0, ci).reduce((a, b) => a + b, 0); ci += span;
+      const ls = wrap(c.t, w - 16, 14, c.b), sub = (c.sub || []).flatMap(l => wrap(l, w - 16, 12.5)); return { c, x0, w, ls, sub, h: ls.length * LH + sub.length * SL }; });
+      return { cs, h: Math.max(...cs.map(c => c.h)) + 14 }; });
+    lay.push({ s, ws, rows, y0: y }); y += 34 + 30 + rows.reduce((a, r) => a + r.h, 0) + 10;
+  }
+  const cumL = d.cumples.length ? wrap('Cumpleaños de hoy: ' + d.cumples.join(', '), W - 2 * P, 14) : [];
+  const H = y + 12 + (cumL.length ? cumL.length * 20 + 12 : 0) + 34;
+  cv.width = W * S; cv.height = H * S; x.scale(S, S); x.textBaseline = 'top';
+  // 2) dibujar
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#204070'; x.beginPath(); x.roundRect ? x.roundRect(P, P, W - 2 * P, 64, 12) : x.rect(P, P, W - 2 * P, 64); x.fill();
+  x.fillStyle = '#fff'; font(21, 1); x.fillText(`${d.titulo} · ${d.colegio}`, P + 18, P + 12); x.fillStyle = '#dbe4f2'; font(14); x.fillText(`${d.fecha} · ${d.semana}`, P + 18, P + 40);
+  const pend = d.resumen.afectados - d.resumen.cubiertos; font(14); x.fillStyle = '#1b2536';
+  let rx = P; for (const [k, v, col] of [['Ausencias', d.resumen.aus], ['Bloques afectados', d.resumen.afectados], ['Cubiertos', d.resumen.cubiertos, '#14692b']].concat(pend ? [['Por definir', pend, '#b3261e']] : [])) {
+    font(14); x.fillStyle = '#5c6a80'; x.fillText(k + ': ', rx, P + 78); rx += x.measureText(k + ': ').width; font(14, 1); x.fillStyle = col || '#1b2536'; x.fillText(String(v), rx, P + 78); rx += x.measureText(String(v)).width + 22; }
+  for (const L0 of lay) {
+    let yy = L0.y0 + 10; font(16, 1); x.fillStyle = '#204070'; x.fillText(L0.s.t, P, yy); yy += 30;
+    x.fillStyle = '#eef2f8'; x.fillRect(P, yy, W - 2 * P, 30); font(12.5, 1); x.fillStyle = '#204070'; let cx = P;
+    L0.s.cols.forEach(([n], i) => { x.fillText(n.toUpperCase(), cx + 8, yy + 9); cx += L0.ws[i]; });
+    x.strokeStyle = '#c9d3e2'; x.lineWidth = 1; x.strokeRect(P + .5, yy + .5, W - 2 * P - 1, 30); yy += 30;
+    for (const r of L0.rows) {
+      for (const k of r.cs) { const c = k.c; if (c.mal || c.ok) { x.fillStyle = c.mal ? '#fdecec' : '#e7f6ea'; x.fillRect(P + k.x0, yy, k.w, r.h); }
+        let ty = yy + 7; font(14, c.b); x.fillStyle = c.mal ? '#b3261e' : c.ok ? '#14692b' : c.mut ? '#5c6a80' : '#1b2536'; for (const l of k.ls) { x.fillText(l, P + k.x0 + 8, ty); ty += LH; }
+        font(12.5); x.fillStyle = '#5c6a80'; for (const l of k.sub) { x.fillText(l, P + k.x0 + 8, ty); ty += SL; }
+        x.strokeRect(P + k.x0 + .5, yy + .5, k.w, r.h); }
+      yy += r.h;
+    }
+  }
+  let yc = y + 12; if (cumL.length) { font(14); x.fillStyle = '#1b2536'; for (const l of cumL) { x.fillText(l, P, yc); yc += 20; } yc += 12; }
+  font(12.5); x.fillStyle = '#5c6a80'; x.fillText('Unidad Técnico-Pedagógica', P, yc);
+  return cv;
+}
+const pngDe = cv => new Promise(ok => cv.toBlob(ok, 'image/png'));
+function mParte(o) {
+  const u = encodeURIComponent;
+  modal('Parte diario', `<p class="muted sm">Para el correo: <b>Copiar tabla</b> (o <b>Copiar imagen</b>), luego <b>Abrir Gmail</b> y pega con Ctrl+V en el mensaje.</p><div class="parte-prev">${o.html}</div>`,
+    `<button class="btn" data-a="parte-tabla">Copiar tabla</button><button class="btn" data-a="parte-img">Copiar imagen</button><button class="btn" data-a="parte-png">Descargar imagen</button>
+     <a class="btn" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${u(o.texto)}">WhatsApp</a>
+     <a class="btn dark" data-a="parte-gmail" target="_blank" rel="noopener noreferrer" href="https://mail.google.com/mail/?view=cm&fs=1&su=${u(o.asunto)}&body=${u('(Pega aquí la tabla del parte con Ctrl+V)')}">${ic('mail')} Abrir Gmail</a>`, 'wide');
+  mEnvio.o = o;
+}
+/** Copia la tabla con formato; si el portapapeles está bloqueado (iframe), selecciona la vista previa y usa copiar del navegador. */
+async function copiarTabla() {
+  const o = mEnvio.o;
+  try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([o.html], { type: 'text/html' }), 'text/plain': new Blob([o.texto], { type: 'text/plain' }) })]); toast('Tabla copiada: pégala en el correo', 'ok'); return true; }
+  catch { const el = $('.parte-prev'); if (el) { const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { if (document.execCommand('copy')) { toast('Tabla copiada: pégala en el correo', 'ok'); return true; } } catch { } } toast('Selecciona la tabla y cópiala con Ctrl+C', 'err'); return false; }
 }
 const lineasDet = (d, sangria) => L.parseDetalle(d).map(i => sangria + (i.sub !== undefined ? `-- ${i.sub} --` : [i.hora, L.textoItem(i)].filter(Boolean).join(' ')));
 function boletin(l) {
@@ -508,7 +582,10 @@ const A = {
   'ok-otro': () => { const f = $('[data-form=otro]'), n = leerForm(f).n; if (!n) return; setCob(f.dataset.id, f.dataset.k, n); cerrarModal(); },
   'mas-cand': el => { const a = get('ausencias', el.dataset.id), k = el.dataset.k, [f, bid] = k.split(',')[0].split('|'), b = get('bloques', bid), ini = el.dataset.ini || b.ini, fin = el.dataset.fin || b.fin, c = L.candidatos(f, ini, fin, b.curso_id);
     modal('¿Quién puede cubrir?', `<p class="muted sm">${esc(b.curso_id || b.detalle)} · ${ini}–${fin} · en cada grupo, primero quien tiene menos reemplazos en el mes</p>${Object.keys(L.GRUPOS).map(g => { const l = c.filter(p => p.grupo === g); return l.length ? `<h4 class="cob-g ${L.GRUPOS[g].k}">${esc(L.GRUPOS[g].n)} <small>${esc(L.GRUPOS[g].d)}</small></h4><div class="chips col">${l.map(p => chipCand(p, a, k, 1)).join('')}</div>` : ''; }).join('') || '<p class="muted">Nadie disponible en ese horario.</p>'}`); },
-  parte: () => mEnvio('Parte diario', parteDiario(ui.fecha)), boletin: () => mEnvio('Boletín semanal', boletin(lunes())),
+  parte: () => mParte(parteDiario(ui.fecha)),
+  'parte-tabla': () => copiarTabla(), 'parte-gmail': () => { copiarTabla(); },
+  'parte-png': async () => { const cv = await parteImagen(mEnvio.o.datos), a = document.createElement('a'); a.href = URL.createObjectURL(await pngDe(cv)); a.download = `Parte_diario_${ui.fecha}.png`; document.body.appendChild(a); a.click(); a.remove(); },
+  'parte-img': async () => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': parteImagen(mEnvio.o.datos).then(pngDe) })]); toast('Imagen copiada: pégala en el correo', 'ok'); } catch { toast('Este navegador no permite copiar imágenes aquí: usa «Descargar imagen» y adjúntala', 'err'); } }, boletin: () => mEnvio('Boletín semanal', boletin(lunes())),
   'copiar-txt': () => copiar(mEnvio.o.texto), 'copiar-html': () => copiar(mEnvio.o.texto, mEnvio.o.html),
   mes: el => ui.mes = el.dataset.m, area: el => ui.area = el.dataset.v, htab: el => ui.hTab = el.dataset.v, ciclo: el => { ui.ciclo = el.dataset.v; ui.curso = ''; }, curso: el => ui.curso = el.dataset.v,
   'ver-curso': el => { ui.curso = el.dataset.id; ui.hTab = 'curso'; }, sabdia: el => ui.sabDia = +el.dataset.v, sabj: el => ui.sabJ = el.dataset.v, edif: el => ui.edificio = el.dataset.v, cfg: el => { ui.cfg = el.dataset.v; ui.q = ''; },
