@@ -159,7 +159,7 @@ export function candidatos(fecha, ini, fin, curso) {
     if (!g) continue;
     out.push({ id, nombre: f.nombre, grupo: g, tipo: bs.some(b => b.tipo === 'NOLECT') ? 'NOLECT' : 'AULAREC', n: cnt[f.nombre] || 0 });
   }
-  return out.sort((x, y) => ORDEN_G[x.grupo] - ORDEN_G[y.grupo] || x.n - y.n || x.nombre.localeCompare(y.nombre));
+  return out.sort((x, y) => ORDEN_G[x.grupo] - ORDEN_G[y.grupo] || x.n - y.n || porApellido(x.nombre, y.nombre));
 }
 export function resumenDia(fecha) {
   const aus = ausenciasDe(fecha); let af = 0, cu = 0;
@@ -195,9 +195,28 @@ export function colisiones(e) {
   return out;
 }
 export function nombreEspacio(id) { const s = get('espacios', id); return s ? s.nombre : ''; }
-export function nombreCorto(n) { // "APELLIDO APELLIDO NOMBRE NOMBRE" o "Nombre Apellido" -> legible
-  const p = String(n || '').trim().split(/\s+/); return p.slice(0, 3).join(' ');
+// ---------- nombres de personas: se muestran como "Primer nombre Primer apellido" y se ordenan por el primer apellido ----------
+// En la nómina los docentes vienen con los apellidos primero ("Leyton Opazo Paula Javiera") y el equipo PIE y la planilla
+// con el nombre primero ("Romina Rodríguez Lobos", "Constanza E. Véjar Labrín").
+let idxNom = null, idxRef = null, idxLen = -1;
+function funcDeNombre(n) {
+  const fs = all('funcionarios'); if (fs !== idxRef || fs.length !== idxLen) { idxNom = new Map(fs.map(f => [norm(f.nombre), f])); idxRef = fs; idxLen = fs.length; }
+  return idxNom.get(norm(n));
 }
+const RE_PERSONA = /^[\p{L}.'´ ]+$/u; // solo letras: no se tocan textos como "Inspectoría + Guía" o "Ana Pérez / Luis Soto"
+export function partesNombre(n) {
+  const s0 = String(n || '').trim(); if (!s0) return null;
+  const s = s0 === s0.toUpperCase() && /\p{Lu}{3}/u.test(s0) ? tituloCaso(s0) : s0;
+  if (!RE_PERSONA.test(s)) return null;
+  const p = s.split(/\s+/), f = funcDeNombre(s0); if (p.length < 2 || p.length > 7) return null;
+  if (f && /docente/i.test(f.estamento || '')) return { nombre: p[p.length > 2 ? 2 : 1], apellido: p[0] };
+  return { nombre: p[0], apellido: p.length >= 4 ? p[p.length - 2] : p[1] };
+}
+/** "Leyton Opazo Paula Javiera" → "Paula Leyton"; "Romina Rodríguez Lobos" → "Romina Rodríguez". Otros textos quedan igual. */
+export function nombreCorto(n) { const q = partesNombre(n); return q ? `${q.nombre} ${q.apellido}` : String(n || ''); }
+/** Clave para ordenar por primer apellido (y luego primer nombre). */
+export function claveApellido(n) { const q = partesNombre(n); return norm(q ? q.apellido + ' ' + q.nombre : n); }
+export const porApellido = (a, b) => claveApellido(a).localeCompare(claveApellido(b), 'es');
 export function tituloCaso(s) { return String(s || '').toLowerCase().replace(/(^|[\s.\-/(])([a-záéíóúñ])/g, (m, a, b) => a + b.toUpperCase()); }
 
 // ---------- cumpleaños ----------

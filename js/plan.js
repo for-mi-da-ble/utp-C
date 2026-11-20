@@ -60,7 +60,7 @@ export function vPlan(head) {
       body += `<tr class="gp"><th class="gl"><div class="glin"><button class="gtit" data-a="plan-pry" data-id="${esc(p.id)}"><b>${esc(p.nombre)}</b><small>${esc(p.responsable || '')}${ts.length ? ` · ${hechas}/${ts.length}` : ''}${p.estado === 'BORRADOR' ? ' · borrador' : ''}</small></button>${ed() ? `<button class="ibtn sm" data-a="plan-tar-n" data-p="${esc(p.id)}" aria-label="Agregar tarea a ${esc(p.nombre)}">${ic('plus')}</button>` : ''}${p.doc_url ? `<a class="ibtn sm" href="${esc(p.doc_url)}" target="_blank" rel="noopener" aria-label="Abrir documento">${ic('arrow')}</a>` : ''}</div></th>${ini ? celdas(ini, fin, 'sum ' + ac) : cols.map(() => '<td class="gc"></td>').join('')}</tr>`;
       for (const t of vs) {
         const cls = [AREA[ak].c, t.estado === 'HECHA' ? 'done' : '', atrasada(t) ? 'late' : '', t.estado === 'EN_CURSO' ? 'run' : ''].join(' ');
-        body += `<tr class="gt"><th class="gl"><div class="glin"><button class="gtit" data-a="plan-tar" data-id="${esc(t.id)}"><span>${t.estado === 'HECHA' ? '✓ ' : ''}${esc(t.titulo)}</span><small>${esc(t.responsable || '')}${t.fin ? ' · ' + L.fechaCorta(t.fin) : ''}${t.agendada ? ' · agendada' : ''}</small></button></div></th>${celdas(t.inicio, t.fin, cls, t.hito === 'SI')}</tr>`;
+        body += `<tr class="gt"><th class="gl"><div class="glin"><button class="gtit" data-a="plan-tar" data-id="${esc(t.id)}"><span>${t.estado === 'HECHA' ? '✓ ' : ''}${esc(t.titulo)}</span><small>${esc(L.nombreCorto(t.responsable || ''))}${t.fin ? ' · ' + L.fechaCorta(t.fin) : ''}${t.agendada ? ' · agendada' : ''}</small></button></div></th>${celdas(t.inicio, t.fin, cls, t.hito === 'SI')}</tr>`;
       }
     }
   }
@@ -89,7 +89,7 @@ export function bloqueHoy(fecha) {
   const lista = atr.concat(sem.sort((a, b) => String(a.fin || a.inicio).localeCompare(String(b.fin || b.inicio))));
   const fila = t => { const p = get('proyectos', t.proyecto_id) || {}, late = atrasada(t);
     return `<div class="pitem ${late ? 'late' : ''}">${ed() ? `<button class="tick" data-a="plan-ok" data-id="${esc(t.id)}" aria-label="Marcar hecha: ${esc(t.titulo)}" title="Marcar hecha"></button>` : `<span class="dot ${(AREA[p.area] || {}).c || 'gray'}"></span>`}
-      <button class="grow tl" data-a="plan-tar" data-id="${esc(t.id)}"><b>${t.hito === 'SI' ? '◆ ' : ''}${esc(t.titulo)}</b><small>${esc(p.nombre || '')}${t.responsable ? ' · ' + esc(t.responsable) : ''}${t.duracion_min ? ' · ' + esc(t.duracion_min) + ' min' : ''}</small></button>
+      <button class="grow tl" data-a="plan-tar" data-id="${esc(t.id)}"><b>${t.hito === 'SI' ? '◆ ' : ''}${esc(t.titulo)}</b><small>${esc(p.nombre || '')}${t.responsable ? ' · ' + esc(L.nombreCorto(t.responsable)) : ''}${t.duracion_min ? ' · ' + esc(t.duracion_min) + ' min' : ''}</small></button>
       <span class="pf">${late ? 'Atrasada · ' : ''}${t.hito === 'SI' || !t.fin || t.fin === t.inicio ? L.fechaCorta(t.inicio) : 'hasta ' + L.fechaCorta(t.fin)}</span></div>`; };
   const resps = [...new Set(all('tareas').map(t => t.responsable).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
   return `<div class="card prox"><div class="ch"><h3>Planeación de la semana <small class="muted">${L.fechaCorta(lu)} – ${L.fechaCorta(vi)}</small></h3>

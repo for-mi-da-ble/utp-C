@@ -11,7 +11,8 @@ const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendar
 const ed = () => S.puedeEditar(), adm = () => S.esAdmin();
 const lunes = () => L.lunesDe(ui.fecha);
 const cursosOrd = () => all('cursos').slice().sort((a, b) => a.orden - b.orden);
-const funcOrd = () => all('funcionarios').slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+const funcOrd = () => all('funcionarios').slice().sort((a, b) => L.porApellido(a.nombre, b.nombre));
+const nc = n => L.nombreCorto(n); // nombre para mostrar: primer nombre y primer apellido
 const fn = id => (get('funcionarios', id) || {}).nombre || (id ? '' : 'Por asignar');
 const materia = b => { const d = String(b.detalle || ''); const p = d.split('·'); return (p.length > 1 ? p[p.length - 1] : d.replace(/^\s*\d\s*[º°]\s*(medio|b[aá]sico)\s*[a-d]\b/i, '')).trim() || d; };
 const rango = b => `${b.ini}–${b.fin}`;
@@ -41,10 +42,10 @@ const navFecha = (paso, lbl) => `<div class="datenav"><button class="ibtn" data-
 
 // ============ HOY (contingencia) ============
 function donut(p, c1) { const r = 52, C = 2 * Math.PI * r; return `<svg viewBox="0 0 130 130" class="donut"><circle cx="65" cy="65" r="${r}" class="trk"/><circle cx="65" cy="65" r="${r}" stroke="${c1}" stroke-dasharray="${(C * p).toFixed(1)} ${C}" transform="rotate(-90 65 65)" class="arc"/></svg>`; }
-const chipCand = (p, a, k, largo) => `<button class="chip ${L.GRUPOS[p.grupo].k}" data-a="cubrir" data-id="${a.id}" data-k="${k}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)} · ${p.n} reemplazo${p.n === 1 ? '' : 's'} este mes">${esc(largo ? p.nombre : L.nombreCorto(p.nombre))}${largo ? `<small>${esc(L.GRUPOS[p.grupo].n)}</small>` : ''}<i>${p.n}</i></button>`;
+const chipCand = (p, a, k, largo) => `<button class="chip ${L.GRUPOS[p.grupo].k}" data-a="cubrir" data-id="${a.id}" data-k="${k}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)} · ${p.n} reemplazo${p.n === 1 ? '' : 's'} este mes">${esc(nc(p.nombre))}${largo ? `<small>${esc(L.GRUPOS[p.grupo].n)}</small>` : ''}<i>${p.n}</i></button>`;
 const LEYENDA_COB = `<div class="cob-ley"><span class="g-verde">PIE en el curso</span><span class="g-amarillo">PIE en aula de recursos</span><span class="g-rojo">Docente disponible</span></div>`;
 function chipsCobertura(a, t, fecha) {
-  if (t.cubre) return `<div class="cubre"><span class="tag ${t.cubre === L.NO_REQUIERE ? 'gray' : 'green'}">${ic('check')} ${esc(t.cubre === L.NO_REQUIERE ? 'No requiere reemplazo' : t.cubre)}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${t.keys}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
+  if (t.cubre) return `<div class="cubre"><span class="tag ${t.cubre === L.NO_REQUIERE ? 'gray' : 'green'}">${ic('check')} ${esc(t.cubre === L.NO_REQUIERE ? 'No requiere reemplazo' : nc(t.cubre))}</span>${ed() ? `<button class="ibtn sm" data-a="descubrir" data-id="${a.id}" data-k="${t.keys}" aria-label="Quitar reemplazo">${ic('x')}</button>` : ''}</div>`;
   if (!ed()) return `<span class="tag pink">${t.parcial ? 'Cubierto en parte' : 'Sin cubrir'}</span>`;
   const c = L.candidatos(fecha, t.ini, t.fin, t.b.curso_id), prim = c.filter(p => p.grupo !== 'DOC' && p.grupo !== 'OTRO'), doc = c.filter(p => p.grupo === 'DOC');
   const vis = prim.concat(doc.slice(0, 3)), resto = c.length - vis.length;
@@ -61,7 +62,7 @@ function sinClasesTxt(a, fecha) {
 }
 function tarjetaAusencia(a, fecha) {
   const af = L.tramos(a, fecha), jor = L.textoTramo(a.jornada) ? ' · ' + L.textoTramo(a.jornada) : '';
-  return `<div class="aus"><div class="aus-h" data-a="edit-aus" data-id="${a.id}"><span class="avatar pink">${ic('user')}</span><div><b>${esc(a.nombre)}</b><small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}${jor}${a.hasta && a.hasta !== a.fecha ? ` · hasta ${L.fechaCorta(a.hasta)}` : ''}${a.nota ? ' · ' + esc(a.nota) : ''}</small></div></div>
+  return `<div class="aus"><div class="aus-h" data-a="edit-aus" data-id="${a.id}"><span class="avatar pink">${ic('user')}</span><div><b>${esc(nc(a.nombre))}</b><small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}${jor}${a.hasta && a.hasta !== a.fecha ? ` · hasta ${L.fechaCorta(a.hasta)}` : ''}${a.nota ? ' · ' + esc(a.nota) : ''}</small></div></div>
     ${af.length ? LEYENDA_COB + af.map(t => `<div class="afe ${t.cubre ? 'ok' : ''}"><div class="afe-i"><span class="blk">${t.codigo}</span><div><b>${esc(t.b.curso_id || t.b.detalle || '—')}</b>${t.b.curso_id ? ' · ' + esc(materia(t.b)) : ''}<small>${t.ini}–${t.fin} · ${esc(L.nombreEspacio(t.b.sala_id) || 'Sala por definir')}</small></div></div>${chipsCobertura(a, t, fecha)}</div>`).join('')
       : `<p class="muted sm pad">${a.func_id ? sinClasesTxt(a, fecha) : 'Persona externa a la nómina: sin horario registrado.'}</p>`}</div>`;
 }
@@ -81,7 +82,7 @@ function vHoy() {
         ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>Sin ausencias registradas para este día.</p></div>`}</div>
       <div class="col">
         <div class="card"><div class="ch"><h3>Actividades del día</h3>${ed() ? `<button class="ibtn" data-a="nuevo-ev" data-f="${f}" aria-label="Agregar actividad">${ic('plus')}</button>` : ''}</div>
-          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(c.nombre)}</button>`).join('')}</div>` : ''}</div>
+          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.nombre))}</button>`).join('')}</div>` : ''}</div>
         <div class="card parte"><h3>Parte diario</h3><p class="muted sm">Texto y tabla listos para Gmail o WhatsApp con las ausencias, reemplazos y actividades.</p><button class="btn dark wide" data-a="parte">${ic('mail')} Generar parte de las 08:00</button></div>
       </div>
     </div>`;
@@ -107,10 +108,7 @@ const linMat = (m, quita) => `<div class="gl" ${adm() ? `data-a="edit-mat" data-
 // talleres del día. Un solo modelo de datos que se entrega como tabla (para pegar en Gmail), imagen PNG y texto (WhatsApp).
 const GRUPOS_AUS = [['LICENCIAS MÉDICAS', t => t === 'LICENCIA'], ['ADMINISTRATIVOS', t => t === 'ADMINISTRATIVO' || t === 'ADMIN_MEDIO'], ['OTRAS AUSENCIAS', () => true]];
 /** "Leyton Opazo Paula Javiera" (docentes: apellidos primero) → "Paula Leyton"; "Romina Rodríguez Lobos" → "Romina Rodríguez". */
-function nombreParte(n) {
-  const f = funcPorNombre(n), p = String(n || '').trim().split(/\s+/); if (!f || p.length < 2) return String(n || '');
-  return /docente/i.test(f.estamento || '') ? `${p[p.length > 2 ? 2 : 1]} ${p[0]}` : `${p[0]} ${p[1]}`;
-}
+const nombreParte = n => nc(n);
 /** "3° MEDIO C" → "3°MC", "4° BÁSICO B" → "4°B", "PRE KINDER A" → "PKA", "KINDER B" → "KB". */
 function cursoCorto(c) {
   const n = L.norm(c), m = /^(\d)° ?(medio|basico)? ?([a-d])?$/.exec(n);
@@ -235,7 +233,7 @@ function boletin(l) {
       const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), b = [];
       if (barra !== 'TALLERES') evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === barra).forEach(e => b.push(...ev(e, '[!]'))); // notas especiales primero
       if (barra === 'ESTUDIANTES') {
-        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => c.nombre).join(', '));
+        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => nc(c.nombre)).join(', '));
         de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•')));
       } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
         b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
@@ -268,7 +266,7 @@ function celdaSemana(f, i, barra, E, dups, cum) {
   }
   if (barra === 'ESTUDIANTES') {
     const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
-    h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(c.nombre)}</button>`)); // 2. cumpleaños (naranja)
+    h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(nc(c.nombre))}</button>`)); // 2. cumpleaños (naranja)
     h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
   } else if (barra === 'REF' || barra === 'TAL') { // al final del día, en sub-filas propias: así quedan alineados entre días
     const ref = barra === 'REF', rut = L.rutinaDe(f, ref ? { REFORZAMIENTO: 1 } : { TALLER_ACLE: 1 });
@@ -369,11 +367,11 @@ function adminAnual(y) {
     if (r.completos || r.medios) por.set(k, r);
   }
   for (const f of all('funcionarios')) if (!por.has(f.id)) por.set(f.id, { nombre: f.nombre, completos: 0, medios: 0, fechas: [] }); // también quienes no han usado días
-  const filas = [...por.values()].map(r => ({ ...r, total: r.completos + r.medios / 2 })).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
+  const filas = [...por.values()].map(r => ({ ...r, total: r.completos + r.medios / 2 })).sort((a, b) => b.total - a.total || L.porApellido(a.nombre, b.nombre));
   const ceros = filas.filter(r => !r.total).length;
   const n = x => String(x).replace('.', ',');
   return `<div class="card"><div class="ch"><h3>Días administrativos ${y} por funcionario</h3>${S.nube ? '<button class="btn sm" data-a="recargar-todo">Actualizar desde la Hoja</button>' : ''}</div>${filas.some(r => r.total) || filas.length ? `<table class="tbl adm-tbl"><thead><tr><th>Funcionario/a</th><th>Días completos</th><th>Medios días</th><th>Total</th><th>Fechas</th></tr></thead><tbody>${filas.map(r =>
-    `<tr${r.total ? '' : ' class="cero"'}><td><b>${esc(r.nombre)}</b></td><td>${r.completos}</td><td>${r.medios}</td><td><b>${n(r.total)}</b></td><td class="muted sm">${esc(r.fechas.sort((a, b) => a[0].localeCompare(b[0])).map(([f, m]) => L.fechaCorta(f) + (m ? ' (½)' : '')).join(', '))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total colegio</th><th>${filas.reduce((s, r) => s + r.completos, 0)}</th><th>${filas.reduce((s, r) => s + r.medios, 0)}</th><th>${n(filas.reduce((s, r) => s + r.total, 0))}</th><th></th></tr></tfoot></table>`
+    `<tr${r.total ? '' : ' class="cero"'}><td><b>${esc(nc(r.nombre))}</b></td><td>${r.completos}</td><td>${r.medios}</td><td><b>${n(r.total)}</b></td><td class="muted sm">${esc(r.fechas.sort((a, b) => a[0].localeCompare(b[0])).map(([f, m]) => L.fechaCorta(f) + (m ? ' (½)' : '')).join(', '))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total colegio</th><th>${filas.reduce((s, r) => s + r.completos, 0)}</th><th>${filas.reduce((s, r) => s + r.medios, 0)}</th><th>${n(filas.reduce((s, r) => s + r.total, 0))}</th><th></th></tr></tfoot></table>`
     : `<p class="muted">No hay días administrativos registrados en ${y}.</p>`}<p class="muted sm">${filas.length} personas · ${ceros} sin días administrativos en ${y}. Se cuentan los días hábiles (lunes a viernes) de cada permiso; el ½ día administrativo suma 0,5.</p></div>`;
 }
 /** Licencias médicas y permisos administrativos en vista de calendario (lunes a viernes). */
@@ -386,7 +384,7 @@ function vLic() {
   let d = L.lunesDe(`${ui.licMes}-01`), g = [1, 2, 3, 4, 5].map(i => `<div class="cal-h">${L.DIAS[i].slice(0, 3)}</div>`).join('');
   do {
     for (let i = 0; i < 5; i++) {
-      const f = L.addDias(d, i), en = L.pd(f).getUTCMonth() === m, l = aus.filter(a => L.ausActiva(a, f)).sort((a, b) => TIPO_LIC(a).localeCompare(TIPO_LIC(b)) || a.nombre.localeCompare(b.nombre));
+      const f = L.addDias(d, i), en = L.pd(f).getUTCMonth() === m, l = aus.filter(a => L.ausActiva(a, f)).sort((a, b) => TIPO_LIC(a).localeCompare(TIPO_LIC(b)) || L.porApellido(a.nombre, b.nombre));
       g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="edit-aus" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(a.nombre))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
     }
     d = L.addDias(d, 7);
@@ -400,7 +398,7 @@ function vLic() {
      ${[['LA', 'Licencias y administrativos'], ['lic', 'Licencias médicas'], ['adm', 'Administrativos'], ['TODAS', 'Todas las ausencias']].map(([k, n]) => `<button class="pill sm ${ui.licTipo === k ? 'on' : ''}" data-a="lic-tipo" data-v="${k}">${k === 'lic' || k === 'adm' ? `<span class="lic-dot ${k}"></span>` : ''}${n}</button>`).join('')}</div>
      <div class="card nopad"><div class="cal cal5">${g}</div></div>
      ${adminAnual(y)}
-     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(a.nombre)}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
+     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(a.nombre))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
 }
 
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
@@ -430,7 +428,7 @@ function vHor() {
     const f = get('funcionarios', ui.func) || funcOrd()[0]; if (!f) return hd + tabs; ui.func = f.id;
     const bs = all('bloques').filter(b => b.func_id === f.id), usados = new Set(bs.map(b => L.bloqueDe(b.ini, b.fin))), rows = L.BLOQUES.filter(r => usados.has(r.c) || (r.c !== 'M8' && r.c !== 'T7'));
     const hrs = t => (bs.filter(b => t.includes(b.tipo)).reduce((s, b) => s + L.tmin(b.fin) - L.tmin(b.ini), 0) / 60).toFixed(1).replace('.0', '');
-    return hd + tabs + `<div class="card sel"><div class="fld grow"><label>Funcionario/a</label><select data-c="func">${['DOCENTE', 'PIE'].map(e => `<optgroup label="${e === 'PIE' ? 'Equipo PIE' : 'Docentes'}">${funcOrd().filter(x => (x.estamento === 'PIE') === (e === 'PIE')).map(x => `<option value="${x.id}" ${x.id === f.id ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+    return hd + tabs + `<div class="card sel"><div class="fld grow"><label>Funcionario/a</label><select data-c="func">${['DOCENTE', 'PIE'].map(e => `<optgroup label="${e === 'PIE' ? 'Equipo PIE' : 'Docentes'}">${funcOrd().filter(x => (x.estamento === 'PIE') === (e === 'PIE')).map(x => `<option value="${x.id}" ${x.id === f.id ? 'selected' : ''}>${esc(nc(x.nombre))}</option>`).join('')}</optgroup>`).join('')}</select></div>
       <div class="stat"><b>${hrs(['CLASE'])} h</b><small>lectivas</small></div><div class="stat"><b>${hrs(['NOLECT'])} h</b><small>no lectivas</small></div><div class="stat"><b>${esc(f.horas_contrato || '—')}</b><small>contrato</small></div><div class="stat grow2"><b>${esc(f.departamento || '')}</b><small>${esc(f.cargo || f.estamento)}${f.jefatura ? ' · Jefatura ' + esc(f.jefatura) : ''}</small></div></div>
       <div class="card nopad">${grillaHor(bs, rows, 'docente', 'hf')}</div><div class="legend">${['CLASE', 'CODOC', 'NOLECT', 'AULAREC', 'COLAB', 'CONSEJO', 'COLACION'].map(t => `<span><i class="hb ${L.TIPOS[t].k}"></i>${t === 'CONSEJO' ? 'Reuniones / turnos' : L.TIPOS[t].n}</span>`).join('')}</div>`;
   }
@@ -454,7 +452,7 @@ function vHor() {
   return hd + tabs + `<div class="pills scroll">${L.CICLOS.map(x => `<button class="pill sm ${x === ui.ciclo ? 'on' : ''}" data-a="ciclo" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
     <div class="pills scroll">${cs.filter(x => x.ciclo === ui.ciclo).map(x => `<button class="pill sm ${x.id === c.id ? 'on' : ''}" data-a="curso" data-v="${esc(x.id)}">${esc(x.id)}</button>`).join('')}</div>
     ${al.length ? `<div class="alerts">${al.map(e => `<div class="alert" data-a="edit-ev" data-id="${e.id}">${ic('alert')}<div><b>${L.DIAS[L.dow(e.fecha)]} ${L.fechaCorta(e.fecha)}${e.hora ? ' · ' + esc(e.hora) : ''}</b> ${esc(e.titulo)}</div></div>`).join('')}</div>` : ''}
-    <div class="card sel"><div class="stat grow2"><b>${esc(c.id)}</b><small>${esc(L.nombreEspacio(c.sala_id) || 'Sala por definir')} · Jornada ${c.jornada === 'TARDE' ? 'tarde' : 'mañana'}</small></div><div class="stat grow2"><b>${esc(c.profesor_jefe || '—')}</b><small>Profesor/a jefe</small></div><div class="stat grow"><b class="sm">${esc(c.equipo_pie || '—')}</b><small>Equipo PIE</small></div></div>
+    <div class="card sel"><div class="stat grow2"><b>${esc(c.id)}</b><small>${esc(L.nombreEspacio(c.sala_id) || 'Sala por definir')} · Jornada ${c.jornada === 'TARDE' ? 'tarde' : 'mañana'}</small></div><div class="stat grow2"><b>${esc(L.nombreCorto(c.profesor_jefe) || "—")}</b><small>Profesor/a jefe</small></div><div class="stat grow"><b class="sm">${esc(c.equipo_pie || '—')}</b><small>Equipo PIE</small></div></div>
     <div class="card nopad">${grillaHor(bs, rows, 'curso', 'hc')}</div>${adm() ? '<p class="muted sm">Arrastra una asignatura sobre otra para intercambiar los bloques. Toca un bloque para editarlo.</p>' : ''}`;
 }
 
@@ -592,9 +590,9 @@ function previaAusencia() {
 }
 function mBloque(id, pre) {
   const b = get('bloques', id) || { tipo: 'CLASE', ...pre }, T = L.TIPOS[b.tipo] || {};
-  if (!adm()) { if (!id) return; return modal('Bloque', `<div class="sel flat"><div class="stat grow2"><b>${esc(b.curso_id || T.n)}</b><small>${esc(b.detalle || '')}</small></div><div class="stat"><b>${L.DIAS[b.dia]}</b><small>${rango(b)}</small></div></div><p><b>${esc(fn(b.func_id))}</b><br><span class="muted">${esc(T.n || '')} · ${esc(L.nombreEspacio(b.sala_id))}</span></p>`); }
+  if (!adm()) { if (!id) return; return modal('Bloque', `<div class="sel flat"><div class="stat grow2"><b>${esc(b.curso_id || T.n)}</b><small>${esc(b.detalle || '')}</small></div><div class="stat"><b>${L.DIAS[b.dia]}</b><small>${rango(b)}</small></div></div><p><b>${esc(nc(fn(b.func_id)))}</b><br><span class="muted">${esc(T.n || '')} · ${esc(L.nombreEspacio(b.sala_id))}</span></p>`); }
   modal(id ? 'Editar bloque' : 'Nuevo bloque', `<form class="form" data-form="blq" data-id="${esc(id || '')}">${campos([
-    { k: 'func_id', label: 'Funcionario/a', type: 'select', options: [['', '— Por asignar —']].concat(funcOrd().map(f => [f.id, f.nombre])) }, { k: 'tipo', label: 'Tipo de actividad', type: 'select', options: Object.entries(L.TIPOS).map(([k, v]) => [k, v.n]) },
+    { k: 'func_id', label: 'Funcionario/a', type: 'select', options: [['', '— Por asignar —']].concat(funcOrd().map(f => [f.id, nc(f.nombre)])) }, { k: 'tipo', label: 'Tipo de actividad', type: 'select', options: Object.entries(L.TIPOS).map(([k, v]) => [k, v.n]) },
     { k: 'dia', label: 'Día', type: 'select', options: [1, 2, 3, 4, 5].map(d => [d, L.DIAS[d]]), w: 'third' }, { k: 'ini', label: 'Inicio', type: 'time', req: 1, w: 'third' }, { k: 'fin', label: 'Fin', type: 'time', req: 1, w: 'third' },
     { k: 'curso_id', label: 'Curso', type: 'select', options: [['', '— Sin curso —']].concat(cursosOrd().map(c => [c.id, c.id])), w: 'half' }, { k: 'sala_id', label: 'Sala', type: 'select', options: optEsp(), w: 'half' }, { k: 'detalle', label: 'Asignatura / detalle' }], b)}</form>`, pie(!!id, 'blq'));
 }
@@ -752,7 +750,7 @@ function migrarSalas() {
   toast(`Salas unificadas: ${u.borrar.length} duplicados de mañana/tarde pasan a ser una sola sala`, 'ok');
 }
 migrarSalas();
-S.onChange(() => { if (!migrandoSalas) { clearTimeout(tSalas); tSalas = setTimeout(migrarSalas, 300); } $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join(''); pedir(true); });
+S.onChange(() => { if (!migrandoSalas) { clearTimeout(tSalas); tSalas = setTimeout(migrarSalas, 300); } $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">${esc(nc(f.nombre))}</option>`).join(''); pedir(true); });
 window.addEventListener('hashchange', ruta);
 // Enlaces internos (#vista): se navega dentro de esta misma página. Con <base> (app servida por Apps Script) un href="#x"
 // apuntaría a GitHub Pages y sacaría al usuario de la versión conectada a la Hoja.
@@ -760,7 +758,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest && e.target.closest('a[href^="#"]'); if (!a || e.defaultPrevented || e.ctrlKey || e.metaKey) return;
   e.preventDefault(); const h = a.getAttribute('href'); if (location.hash !== h) location.hash = h; else ruta();
 }, true);
-$('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join('');
+$('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">${esc(nc(f.nombre))}</option>`).join('');
 $('#brand').textContent = CFG.COLEGIO || 'SIG-UTP';
 { const g = document.querySelector('.tools a[href="#config"] .ic'); if (g) g.innerHTML = ic('gear'); } // engranaje también en la página servida por Apps Script
 ruta();
