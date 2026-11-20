@@ -368,11 +368,13 @@ function adminAnual(y) {
     }
     if (r.completos || r.medios) por.set(k, r);
   }
+  for (const f of all('funcionarios')) if (!por.has(f.id)) por.set(f.id, { nombre: f.nombre, completos: 0, medios: 0, fechas: [] }); // también quienes no han usado días
   const filas = [...por.values()].map(r => ({ ...r, total: r.completos + r.medios / 2 })).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
+  const ceros = filas.filter(r => !r.total).length;
   const n = x => String(x).replace('.', ',');
-  return `<div class="card"><div class="ch"><h3>Días administrativos ${y} por funcionario</h3>${S.nube ? '<button class="btn sm" data-a="recargar-todo">Actualizar desde la Hoja</button>' : ''}</div>${filas.length ? `<table class="tbl adm-tbl"><thead><tr><th>Funcionario/a</th><th>Días completos</th><th>Medios días</th><th>Total</th><th>Fechas</th></tr></thead><tbody>${filas.map(r =>
-    `<tr><td><b>${esc(r.nombre)}</b></td><td>${r.completos}</td><td>${r.medios}</td><td><b>${n(r.total)}</b></td><td class="muted sm">${esc(r.fechas.sort((a, b) => a[0].localeCompare(b[0])).map(([f, m]) => L.fechaCorta(f) + (m ? ' (½)' : '')).join(', '))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total colegio</th><th>${filas.reduce((s, r) => s + r.completos, 0)}</th><th>${filas.reduce((s, r) => s + r.medios, 0)}</th><th>${n(filas.reduce((s, r) => s + r.total, 0))}</th><th></th></tr></tfoot></table>`
-    : `<p class="muted">No hay días administrativos registrados en ${y}.</p>`}<p class="muted sm">Se cuentan los días hábiles (lunes a viernes) de cada permiso; el ½ día administrativo suma 0,5.</p></div>`;
+  return `<div class="card"><div class="ch"><h3>Días administrativos ${y} por funcionario</h3>${S.nube ? '<button class="btn sm" data-a="recargar-todo">Actualizar desde la Hoja</button>' : ''}</div>${filas.some(r => r.total) || filas.length ? `<table class="tbl adm-tbl"><thead><tr><th>Funcionario/a</th><th>Días completos</th><th>Medios días</th><th>Total</th><th>Fechas</th></tr></thead><tbody>${filas.map(r =>
+    `<tr${r.total ? '' : ' class="cero"'}><td><b>${esc(r.nombre)}</b></td><td>${r.completos}</td><td>${r.medios}</td><td><b>${n(r.total)}</b></td><td class="muted sm">${esc(r.fechas.sort((a, b) => a[0].localeCompare(b[0])).map(([f, m]) => L.fechaCorta(f) + (m ? ' (½)' : '')).join(', '))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total colegio</th><th>${filas.reduce((s, r) => s + r.completos, 0)}</th><th>${filas.reduce((s, r) => s + r.medios, 0)}</th><th>${n(filas.reduce((s, r) => s + r.total, 0))}</th><th></th></tr></tfoot></table>`
+    : `<p class="muted">No hay días administrativos registrados en ${y}.</p>`}<p class="muted sm">${filas.length} personas · ${ceros} sin días administrativos en ${y}. Se cuentan los días hábiles (lunes a viernes) de cada permiso; el ½ día administrativo suma 0,5.</p></div>`;
 }
 /** Licencias médicas y permisos administrativos en vista de calendario (lunes a viernes). */
 const TIPO_LIC = a => a.tipo === 'LICENCIA' ? 'lic' : (a.tipo === 'ADMINISTRATIVO' || a.tipo === 'ADMIN_MEDIO') ? 'adm' : 'otra';

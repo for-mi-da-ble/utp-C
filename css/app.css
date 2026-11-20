@@ -352,3 +352,4 @@ h4.cob-g.g-verde { color: #14692b; } h4.cob-g.g-amarillo { color: #6e5100; } h4.
 .adm-tbl { width: 100%; } .adm-tbl td:nth-child(2), .adm-tbl td:nth-child(3), .adm-tbl td:nth-child(4), .adm-tbl tfoot th:nth-child(n+2) { text-align: center; } .adm-tbl tfoot th { border-top: 2px solid var(--line); }
 @media (max-width: 760px) { .adm-tbl td:nth-child(5), .adm-tbl th:nth-child(5) { display: none; } }
 .adm-tbl td { white-space: normal; } .adm-tbl tbody tr { cursor: default; }
+.adm-tbl tr.cero td { color: var(--mut); } .adm-tbl tr.cero td b { font-weight: 500; }
