@@ -356,6 +356,23 @@ function vMat() {
      <div class="matg">${[1, 2, 3, 4, 5].map(col).join('')}</div>${adm() ? '<p class="muted sm">Toca una actividad para editarla o eliminarla.</p>' : ''}`;
 }
 
+/** Días administrativos usados en el año por cada funcionario (días hábiles; ½ día cuenta 0,5). */
+function adminAnual(y) {
+  const por = new Map(), ini = `${y}-01-01`, fin = `${y}-12-31`;
+  for (const a of all('ausencias')) {
+    if (a.tipo !== 'ADMINISTRATIVO' && a.tipo !== 'ADMIN_MEDIO') continue;
+    const k = a.func_id || L.norm(a.nombre), r = por.get(k) || { nombre: a.nombre, completos: 0, medios: 0, fechas: [] };
+    for (let f = a.fecha < ini ? ini : a.fecha, h = (a.hasta || a.fecha) > fin ? fin : (a.hasta || a.fecha); f <= h; f = L.addDias(f, 1)) {
+      if (L.dow(f) > 5) continue; if (a.tipo === 'ADMIN_MEDIO') r.medios++; else r.completos++; r.fechas.push([f, a.tipo === 'ADMIN_MEDIO']);
+    }
+    if (r.completos || r.medios) por.set(k, r);
+  }
+  const filas = [...por.values()].map(r => ({ ...r, total: r.completos + r.medios / 2 })).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
+  const n = x => String(x).replace('.', ',');
+  return `<div class="card"><h3>Días administrativos ${y} por funcionario</h3>${filas.length ? `<table class="tbl adm-tbl"><thead><tr><th>Funcionario/a</th><th>Días completos</th><th>Medios días</th><th>Total</th><th>Fechas</th></tr></thead><tbody>${filas.map(r =>
+    `<tr><td><b>${esc(r.nombre)}</b></td><td>${r.completos}</td><td>${r.medios}</td><td><b>${n(r.total)}</b></td><td class="muted sm">${esc(r.fechas.sort((a, b) => a[0].localeCompare(b[0])).map(([f, m]) => L.fechaCorta(f) + (m ? ' (½)' : '')).join(', '))}</td></tr>`).join('')}</tbody><tfoot><tr><th>Total colegio</th><th>${filas.reduce((s, r) => s + r.completos, 0)}</th><th>${filas.reduce((s, r) => s + r.medios, 0)}</th><th>${n(filas.reduce((s, r) => s + r.total, 0))}</th><th></th></tr></tfoot></table>`
+    : `<p class="muted">No hay días administrativos registrados en ${y}.</p>`}<p class="muted sm">Se cuentan los días hábiles (lunes a viernes) de cada permiso; el ½ día administrativo suma 0,5.</p></div>`;
+}
 /** Licencias médicas y permisos administrativos en vista de calendario (lunes a viernes). */
 const TIPO_LIC = a => a.tipo === 'LICENCIA' ? 'lic' : (a.tipo === 'ADMINISTRATIVO' || a.tipo === 'ADMIN_MEDIO') ? 'adm' : 'otra';
 function vLic() {
@@ -372,13 +389,15 @@ function vLic() {
     d = L.addDias(d, 7);
   } while (L.pd(d).getUTCMonth() === m && d.slice(0, 7) === ui.licMes);
   const prox = aus.filter(a => (a.hasta || a.fecha) >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const dias = a => Math.round((L.pd(a.hasta || a.fecha) - L.pd(a.fecha)) / 864e5) + 1;
+  const dias = a => { if (TIPO_LIC(a) !== 'adm') return Math.round((L.pd(a.hasta || a.fecha) - L.pd(a.fecha)) / 864e5) + 1; // licencias: días corridos
+    let n = 0; for (let f = a.fecha; f <= (a.hasta || a.fecha); f = L.addDias(f, 1)) if (L.dow(f) <= 5) n++; return n; }; // administrativos: días hábiles
   const mesTxt = (k, paso) => { const dt = new Date(Date.UTC(y, m + paso, 1)); return dt.toISOString().slice(0, 7); };
   return head('Licencias y permisos', `${L.MESES[m]} ${y} · licencias médicas y días administrativos registrados`, ed() ? `<button class="btn dark" data-a="nueva-lic">${ic('plus')} Licencia o permiso</button>` : '') + secTabs() +
     `<div class="pills scroll"><div class="datenav"><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, -1)}" aria-label="Mes anterior">${ic('left')}</button><button class="pill" data-a="lic-mes" data-v="${hoy.slice(0, 7)}">${L.MESES[m]}</button><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, 1)}" aria-label="Mes siguiente">${ic('right')}</button></div><span class="sep"></span>
      ${[['LA', 'Licencias y administrativos'], ['lic', 'Licencias médicas'], ['adm', 'Administrativos'], ['TODAS', 'Todas las ausencias']].map(([k, n]) => `<button class="pill sm ${ui.licTipo === k ? 'on' : ''}" data-a="lic-tipo" data-v="${k}">${k === 'lic' || k === 'adm' ? `<span class="lic-dot ${k}"></span>` : ''}${n}</button>`).join('')}</div>
      <div class="card nopad"><div class="cal cal5">${g}</div></div>
-     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(a.nombre)}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
+     ${adminAnual(y)}
+     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(a.nombre)}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
 }
 
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
