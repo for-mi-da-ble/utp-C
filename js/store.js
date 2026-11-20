@@ -22,6 +22,9 @@ export function cargarLocal() {
   outbox = ls.get('outbox', []); rev = ls.get('rev', 0);
   // Primera conexión a la nube: manda la Hoja de Google. Lo acumulado en modo local no se sube (podría pisar datos más nuevos).
   if (nube && !ls.get('nube-ok', false)) { outbox = []; rev = 0; ls.set('outbox', []); ls.set('rev', 0); ls.set('nube-ok', true); }
+  // Al abrir, descarga la Hoja completa si la última descarga completa tiene más de 20 minutos: así llegan también las filas
+  // agregadas directamente en la planilla (cargas masivas) aunque no se haya notado el cambio. Lo pendiente de subir se conserva.
+  if (nube && Date.now() - ls.get('completa', 0) > 12e5) { rev = 0; ls.set('rev', 0); }
 }
 function index(t) { if (!idx[t]) { idx[t] = new Map(); for (const r of db[t]) idx[t].set(r.id, r); } return idx[t]; }
 function persist(t) { ls.set('t:' + t, db[t]); }
@@ -107,7 +110,7 @@ export async function sincronizar() {
         for (const r of ch) { if (pend.has(t + '|' + r.id)) continue; if (r._del) delLocal(t, r.id); else { delete r._del; setLocal(t, r); } }
         persist(t);
       }
-      rev = j.rev; ls.set('rev', rev); estado.rol = j.role; ls.set('rol', j.role); estado.email = j.email || estado.email;
+      rev = j.rev; ls.set('rev', rev); if (completo) ls.set('completa', Date.now()); estado.rol = j.role; ls.set('rol', j.role); estado.email = j.email || estado.email;
       // la Hoja se editó fuera de la app (a mano o con otra herramienta): se descarga todo de nuevo
       const ext = String(j.externo == null ? '' : j.externo);
       if (ext && ext !== ls.get('externo', '')) { ls.set('externo', ext); if (!completo) { rev = 0; ls.set('rev', 0); otra = true; } }

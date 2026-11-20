@@ -45,6 +45,9 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__externo')) { // simula una edición hecha directamente en la Hoja (fuera de la app)
     const h = sheets['02_Eventos_Calendario'], c = h.d[0], fila = c.map(k => ({ id: 'EXT-1', fecha: '2026-11-12', titulo: 'Agregado directo en la Hoja', mensual: 'SI', seccion: 'ESTUDIANTES', jornada: 'AMBAS', area: 'UTP' }[k] || ''));
     h.d.push(fila); actualizado = Date.now() + 20000; res.end('ok'); return; }
+  if (req.url.startsWith('/__silencioso')) { // fila agregada directo en la Hoja sin que se note el cambio de fecha (p. ej., carga masiva)
+    const h = sheets['03_Ausencias_Reemplazos'], c = h.d[0], fila = c.map(k => ({ id: 'AU-SIL-1', fecha: '2026-03-16', hasta: '2026-03-16', nombre: 'Persona Planilla', tipo: 'ADMINISTRATIVO', jornada: 'AMBAS' }[k] || ''));
+    h.d.push(fila); res.end('ok'); return; }
   if (req.url === '/__sheet') { res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([k, s]) => [k, s.d])))); return; }
   let f = req.url.split('?')[0]; if (f === '/') f = '/index.html';
   if (f === '/config.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(`window.SIG_CONFIG={API_URL:'/exec',GOOGLE_CLIENT_ID:'${CID}',COLEGIO:'Colegio de Prueba',ANIO:2026};`); }
