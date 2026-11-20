@@ -21,7 +21,7 @@ const { chromium } = require('playwright');
   await shot('01-hoy');
   await p.click('[data-a=parte]'); await shot('04-parte'); console.log((await p.innerText('.parte-prev')).split('\n').slice(0, 14).join('\n')); await p.keyboard.press('Escape');
   for (const v of ['semana', 'calendario', 'horarios', 'espacios']) { await p.goto('http://localhost:8765/#' + v); await shot('05-' + v); }
-  await p.goto('http://localhost:8765/#horarios'); await p.click('[data-a=ciclo][data-v="Enseñanza Media"]'); await p.click('[data-a=curso][data-v="2° MEDIO B"]'); await shot('06-curso');
+  await p.goto('http://localhost:8765/#horarios'); await p.click('[data-a=hsec][data-v=hor]'); await p.click('[data-a=ciclo][data-v="Enseñanza Media"]'); await p.click('[data-a=curso][data-v="2° MEDIO B"]'); await shot('06-curso');
   await p.click('[data-a=htab][data-v=docente]'); await shot('07-docente'); await p.click('[data-a=htab][data-v=sabana]'); await shot('08-sabana');
   await p.goto('http://localhost:8765/#config'); await p.click('[data-a=cfg][data-v=semanas]'); await shot('09-config');
   await p.setViewportSize({ width: 390, height: 844 }); for (const v of ['hoy', 'semana', 'calendario', 'horarios']) { await p.goto('http://localhost:8765/#' + v); await shot('m-' + v); }

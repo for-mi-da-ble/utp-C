@@ -6,8 +6,8 @@ import * as P from './plan.js';
 
 const CFG = window.SIG_CONFIG || {};
 const { all, get, put, del } = S;
-const ui = { view: 'hoy', fecha: L.proximoHabil(L.hoy()), mes: '', hTab: 'curso', ciclo: '', curso: '', func: '', sabDia: 0, sabJ: 'M', edit: false, rutMes: false, edificio: 'ED_MATRIZ', cfg: 'datos', q: '', area: '' };
-const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['horarios', 'Horarios', 'grid'], ['espacios', 'Espacios', 'pin']];
+const ui = { hSec: 'hor', matCat: '', licMes: '', licTipo: 'LA', view: 'hoy', fecha: L.proximoHabil(L.hoy()), mes: '', hTab: 'curso', ciclo: '', curso: '', func: '', sabDia: 0, sabJ: 'M', edit: false, rutMes: false, edificio: 'ED_MATRIZ', cfg: 'datos', q: '', area: '' };
+const VISTAS = [['hoy', 'Hoy', 'home'], ['semana', 'Semana', 'week'], ['calendario', 'Calendario', 'cal'], ['horarios', 'Horarios', 'grid']];
 const ed = () => S.puedeEditar(), adm = () => S.esAdmin();
 const lunes = () => L.lunesDe(ui.fecha);
 const cursosOrd = () => all('cursos').slice().sort((a, b) => a.orden - b.orden);
@@ -22,14 +22,14 @@ function render(fondo) {
   if (fondo === true && a && a.closest && a.closest('#view') && a.dataset.inline) { pendFondo = true; return; }
   pendFondo = false;
   $('#nav').innerHTML = VISTAS.map(([k, n]) => `<a href="#${k}" class="pill ${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${n}</a>`).join('');
-  $('#bnav').innerHTML = VISTAS.concat([['config', 'Ajustes', 'gear']]).map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
+  $('#bnav').innerHTML = VISTAS.map(([k, n, i]) => `<a href="#${k}" class="${ui.view === k || (k === 'hoy' && ui.view === 'plan') ? 'on' : ''}">${ic(i)}<span>${n}</span></a>`).join('');
   const e = S.estado, pend = S.pendientes();
   const st = { local: ['Modo local', 'gray'], ok: ['Sincronizado', 'green'], sincronizando: ['Sincronizando…', 'blue'], pendiente: ['Conectando…', 'blue'], offline: ['Sin conexión', 'amber'], error: ['Error de sincronización', 'pink'], sesion: ['Inicia sesión', 'amber'] }[e.sync];
   $('#sync').innerHTML = `<span class="dot ${st[1]}"></span><span class="lbl">${st[0]}${pend && S.nube ? ` · ${pend}` : ''}</span>`;
   $('#sync').title = e.error || (e.email ? e.email + ' · ' + e.rol : '');
   const v = $('#view'), y = window.scrollY;
   if (!all('funcionarios').length && ui.view !== 'config') v.innerHTML = vacio();
-  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHor, espacios: vEsp, plan: () => P.vPlan(head), config: vCfg }[ui.view] || vHoy)();
+  else v.innerHTML = ({ hoy: vHoy, semana: vSemana, calendario: vCal, horarios: vHorarios, plan: () => P.vPlan(head), config: vCfg }[ui.view] || vHoy)();
   window.scrollTo(0, y);
   $('#login').hidden = !(S.nube && !S.sesionValida() && !S.estado.rol);
   $('#banner').innerHTML = S.nube && !S.sesionValida() && S.estado.rol ? `<div class="banner">${ic('alert')} Sesión expirada: ves la copia guardada en este dispositivo. <button class="btn sm" data-a="relogin">Iniciar sesión</button></div>` : (e.sync === 'error' && e.error ? `<div class="banner pink">${ic('alert')} ${esc(e.error)}</div>` : '');
@@ -69,7 +69,7 @@ function vHoy() {
   const f = ui.fecha, r = L.resumenDia(f), w = L.semanaDe(f), sin = r.afectados - r.cubiertos, p = r.afectados ? r.cubiertos / r.afectados : 1;
   const ev = j => r.eventos.filter(e => j === 'M' ? e.jornada !== 'TARDE' : e.jornada === 'TARDE');
   const evl = l => l.length ? l.map(e => evChip(e)).join('') : '<p class="muted sm">Sin actividades.</p>';
-  return head(f === L.hoy() ? 'Hoy' : L.DIAS[L.dow(f)], `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, navFecha(1, f === L.hoy() ? 'Hoy' : 'Ir a hoy') + (ed() ? `<button class="btn dark" data-a="nueva-aus">${ic('plus')} Registrar ausencia</button>` : '')) +
+  return head(f === L.hoy() ? 'Hoy' : L.DIAS[L.dow(f)], `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, navFecha(1, f === L.hoy() ? 'Hoy' : 'Ir a hoy') + (ed() ? `<button class="btn" data-a="nueva-lic">${ic('user')} Licencia o permiso</button><button class="btn dark" data-a="nueva-aus">${ic('plus')} Registrar ausencia</button>` : '')) +
     `<div class="grid3">
       <div class="card kpi"><div class="kh"><span class="avatar pink">${ic('user')}</span><span>Ausencias<br>docentes</span></div><div class="big">${r.aus.length}</div><div class="kf">${r.aus.length ? esc(r.aus.slice(0, 3).map(a => L.nombreCorto(a.nombre)).join(', ')) + (r.aus.length > 3 ? '…' : '') : 'Dotación completa'}</div></div>
       <div class="card kpi"><div class="kh"><span class="avatar ${sin ? 'amber' : 'green'}">${ic(sin ? 'alert' : 'check')}</span><span>Bloques<br>sin cubrir</span></div><div class="big">${sin}<sup class="${sin ? 'dn' : 'up'}">${r.cubiertos}/${r.afectados} cubiertos</sup></div><div class="bar"><i class="${sin ? 'pink' : 'green'}" style="width:${Math.round(p * 100)}%"></i></div></div>
@@ -341,7 +341,46 @@ function vCal() {
      <div class="card nopad"><div class="cal">${g}</div></div>`;
 }
 
-// ============ HORARIOS ============
+// ============ HORARIOS (con espacios, actividades permanentes y licencias) ============
+const SECS = [['hor', 'Horarios', 'grid'], ['esp', 'Espacios', 'pin'], ['mat', 'Actividades permanentes', 'week'], ['lic', 'Licencias y permisos', 'user']];
+const secTabs = () => `<div class="pills sec">${SECS.map(([k, n, i]) => `<button class="pill ${ui.hSec === k ? 'on' : ''}" data-a="hsec" data-v="${k}">${ic(i)} ${n}</button>`).join('')}</div>`;
+function vHorarios() { return ({ esp: vEsp, mat: vMat, lic: vLic }[ui.hSec] || vHor)(); }
+
+/** Matriz de actividades permanentes: lo que se repite cada semana (talleres, reforzamientos, reuniones fijas). */
+function vMat() {
+  const cats = Object.entries(L.MATRIZ_CAT), ms = all('matriz').filter(m => !ui.matCat || m.categoria === ui.matCat);
+  const col = d => { const l = ms.filter(m => +m.dia === d).sort((a, b) => L.tmin(a.ini) - L.tmin(b.ini));
+    return `<div class="mat-col"><div class="mat-h"><b>${L.DIAS[d]}</b>${adm() ? `<button class="ibtn sm" data-a="nueva-mat" data-d="${d}" data-c="${esc(ui.matCat || 'TALLER_ACLE')}" aria-label="Agregar actividad el ${L.DIAS[d]}">${ic('plus')}</button>` : ''}</div>${l.map(m => `<div class="mat-it ${RUT_K[m.categoria] || 'gray'}" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : ''}><small>${m.ini}–${m.fin}</small><b>${esc(m.titulo)}</b>${m.sala_id || m.grupo ? `<small>${esc([L.nombreEspacio(m.sala_id), m.grupo].filter(Boolean).join(' · '))}</small>` : ''}</div>`).join('') || '<p class="muted sm">—</p>'}</div>`; };
+  return head('Actividades permanentes', 'Matriz semanal fija: se repite cada semana de clases (no en feriados ni recesos)', adm() ? `<button class="btn dark" data-a="nueva-mat" data-d="1" data-c="${esc(ui.matCat || 'TALLER_ACLE')}">${ic('plus')} Nueva actividad</button>` : '') + secTabs() +
+    `<div class="pills scroll"><button class="pill sm ${ui.matCat ? '' : 'on'}" data-a="mat-cat" data-v="">Todas<i>${all('matriz').length}</i></button>${cats.map(([k, n]) => `<button class="pill sm ${ui.matCat === k ? 'on' : ''}" data-a="mat-cat" data-v="${k}"><span class="dot ${RUT_K[k]}"></span>${n}<i>${all('matriz').filter(m => m.categoria === k).length}</i></button>`).join('')}</div>
+     <div class="matg">${[1, 2, 3, 4, 5].map(col).join('')}</div>${adm() ? '<p class="muted sm">Toca una actividad para editarla o eliminarla.</p>' : ''}`;
+}
+
+/** Licencias médicas y permisos administrativos en vista de calendario (lunes a viernes). */
+const TIPO_LIC = a => a.tipo === 'LICENCIA' ? 'lic' : (a.tipo === 'ADMINISTRATIVO' || a.tipo === 'ADMIN_MEDIO') ? 'adm' : 'otra';
+function vLic() {
+  if (!ui.licMes) ui.licMes = ui.fecha.slice(0, 7);
+  const [y, mm] = ui.licMes.split('-').map(Number), m = mm - 1, hoy = L.hoy();
+  const filtro = a => ui.licTipo === 'TODAS' || (ui.licTipo === 'LA' ? TIPO_LIC(a) !== 'otra' : TIPO_LIC(a) === ui.licTipo);
+  const aus = all('ausencias').filter(filtro);
+  let d = L.lunesDe(`${ui.licMes}-01`), g = [1, 2, 3, 4, 5].map(i => `<div class="cal-h">${L.DIAS[i].slice(0, 3)}</div>`).join('');
+  do {
+    for (let i = 0; i < 5; i++) {
+      const f = L.addDias(d, i), en = L.pd(f).getUTCMonth() === m, l = aus.filter(a => L.ausActiva(a, f)).sort((a, b) => TIPO_LIC(a).localeCompare(TIPO_LIC(b)) || a.nombre.localeCompare(b.nombre));
+      g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="edit-aus" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(a.nombre))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
+    }
+    d = L.addDias(d, 7);
+  } while (L.pd(d).getUTCMonth() === m && d.slice(0, 7) === ui.licMes);
+  const prox = aus.filter(a => (a.hasta || a.fecha) >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const dias = a => Math.round((L.pd(a.hasta || a.fecha) - L.pd(a.fecha)) / 864e5) + 1;
+  const mesTxt = (k, paso) => { const dt = new Date(Date.UTC(y, m + paso, 1)); return dt.toISOString().slice(0, 7); };
+  return head('Licencias y permisos', `${L.MESES[m]} ${y} · licencias médicas y días administrativos registrados`, ed() ? `<button class="btn dark" data-a="nueva-lic">${ic('plus')} Licencia o permiso</button>` : '') + secTabs() +
+    `<div class="pills scroll"><div class="datenav"><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, -1)}" aria-label="Mes anterior">${ic('left')}</button><button class="pill" data-a="lic-mes" data-v="${hoy.slice(0, 7)}">${L.MESES[m]}</button><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, 1)}" aria-label="Mes siguiente">${ic('right')}</button></div><span class="sep"></span>
+     ${[['LA', 'Licencias y administrativos'], ['lic', 'Licencias médicas'], ['adm', 'Administrativos'], ['TODAS', 'Todas las ausencias']].map(([k, n]) => `<button class="pill sm ${ui.licTipo === k ? 'on' : ''}" data-a="lic-tipo" data-v="${k}">${k === 'lic' || k === 'adm' ? `<span class="lic-dot ${k}"></span>` : ''}${n}</button>`).join('')}</div>
+     <div class="card nopad"><div class="cal cal5">${g}</div></div>
+     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(a.nombre)}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
+}
+
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
 function celdas(blocks) { const m = {}; for (const b of blocks) { const c = L.bloqueDe(b.ini, b.fin); if (c) (m[c + '|' + b.dia] = m[c + '|' + b.dia] || []).push(b); } return m; }
 function ausenteEn(fecha, b) { return L.ausenciasDe(fecha).find(a => a.func_id === b.func_id && L.enJornada(a.jornada, b.ini, b.fin)); }
@@ -364,7 +403,7 @@ function grillaHor(blocks, rows, modo, pref) {
 }
 function vHor() {
   const tabs = `<div class="pills"><button class="pill ${ui.hTab === 'curso' ? 'on' : ''}" data-a="htab" data-v="curso">Por curso</button><button class="pill ${ui.hTab === 'docente' ? 'on' : ''}" data-a="htab" data-v="docente">Por docente / PIE</button><button class="pill ${ui.hTab === 'sabana' ? 'on' : ''}" data-a="htab" data-v="sabana">Sábana comparativa</button></div>`;
-  const l = lunes(), w = L.semanaDe(l), hd = head('Horarios', `${L.etiquetaSemana(w)} · ${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))}`, navFecha(7, 'Semana actual'));
+  const l = lunes(), w = L.semanaDe(l), hd = head('Horarios', `${L.etiquetaSemana(w)} · ${L.fechaCorta(l)} al ${L.fechaCorta(L.addDias(l, 4))}`, navFecha(7, 'Semana actual')) + secTabs();
   if (ui.hTab === 'docente') {
     const f = get('funcionarios', ui.func) || funcOrd()[0]; if (!f) return hd + tabs; ui.func = f.id;
     const bs = all('bloques').filter(b => b.func_id === f.id), usados = new Set(bs.map(b => L.bloqueDe(b.ini, b.fin))), rows = L.BLOQUES.filter(r => usados.has(r.c) || (r.c !== 'M8' && r.c !== 'T7'));
@@ -406,7 +445,7 @@ function ocupacion(id) {
 }
 function vEsp() {
   const esp = all('espacios').filter(s => s.edificio === ui.edificio).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
-  return head('Espacios', 'Capacidad, encargado y ocupación por bloque de cada dependencia', adm() ? `<button class="btn dark" data-a="edit-esp" data-id="">${ic('plus')} Nuevo espacio</button>` : '') +
+  return head('Espacios', 'Capacidad, encargado y ocupación por bloque de cada dependencia', adm() ? `<button class="btn dark" data-a="edit-esp" data-id="">${ic('plus')} Nuevo espacio</button>` : '') + secTabs() +
     `<div class="pills scroll">${Object.entries(L.EDIFICIOS).map(([k, n]) => `<button class="pill ${k === ui.edificio ? 'on' : ''}" data-a="edif" data-v="${k}">${n}<i>${all('espacios').filter(s => s.edificio === k).length}</i></button>`).join('')}</div>
      <div class="grid3">${esp.map(s => { const o = ocupacion(s.id), n = Object.keys(o).length, p = Math.round(n / (L.BLOQUES.length * 5) * 100); return `<div class="card kpi esp" data-a="ver-esp" data-id="${esc(s.id)}"><div class="kh"><span class="avatar ${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}">${ic('pin')}</span><span>${esc(s.nombre)}</span><span class="ibtn">${ic('arrow')}</span></div><div class="big">${p}%<sup>${n} bloques/sem.</sup></div><div class="bar"><i class="${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}" style="width:${Math.max(p, 2)}%"></i></div><div class="kf">${s.capacidad ? 'Capacidad ' + esc(s.capacidad) + ' · ' : ''}${esc(s.encargado || 'Sin encargado')}</div></div>`; }).join('') || '<p class="muted">No hay espacios en este edificio.</p>'}</div>`;
 }
@@ -501,16 +540,21 @@ function mEvento(id, pre) {
   avisoColision();
 }
 function avisoColision() { const f = $('[data-form=ev]'); if (!f) return; const o = leerForm(f); o.id = f.dataset.id; const c = L.colisiones(o); $('#colis').innerHTML = c.length ? `<div class="alert pink">${ic('alert')}<div><b>Posible choque de espacio</b><br>${c.slice(0, 4).map(esc).join('<br>')}${c.length > 4 ? `<br>…y ${c.length - 4} más` : ''}</div></div>` : ''; }
-function mAusencia(id) {
-  const a0 = get('ausencias', id) || { fecha: ui.fecha, tipo: 'LICENCIA', jornada: 'AMBAS' }, mh = L.RE_HORAS.exec(a0.jornada || '');
-  const a = mh ? { ...a0, jornada: 'HORAS', h_ini: mh[1], h_fin: mh[2] } : a0;
+const diasEntre = (a, b) => Math.round((L.pd(b) - L.pd(a)) / 864e5) + 1;
+/** Ausencia de un día o de un período. opt.lic: licencia médica o permiso administrativo (se ingresa el período completo una sola vez). */
+function mAusencia(id, opt = {}) {
+  const a0 = get('ausencias', id) || { fecha: opt.fecha || ui.fecha, tipo: 'LICENCIA', jornada: 'AMBAS' }, mh = L.RE_HORAS.exec(a0.jornada || '');
+  const a = { ...(mh ? { ...a0, jornada: 'HORAS', h_ini: mh[1], h_fin: mh[2] } : a0) }; a.dias = diasEntre(a.fecha, a.hasta || a.fecha);
   if (!ed()) return;
-  modal(id ? 'Editar ausencia' : 'Registrar ausencia', `<form class="form" data-form="aus" data-id="${esc(id || '')}">${campos([
+  const lic = opt.lic || (id && /^(LICENCIA|ADMINISTRATIVO|ADMIN_MEDIO)$/.test(a.tipo));
+  const tipos = Object.entries(L.AUS_TIPOS).filter(([k]) => !opt.lic || /^(LICENCIA|ADMINISTRATIVO|ADMIN_MEDIO)$/.test(k));
+  modal(id ? (lic ? 'Editar licencia o permiso' : 'Editar ausencia') : (lic ? 'Licencia médica o permiso administrativo' : 'Registrar ausencia'), `<form class="form" data-form="aus" data-id="${esc(id || '')}" ${opt.lic ? 'data-lic="1"' : ''}>${lic && !id ? '<p class="muted sm">Ingresa el período completo una sola vez: la persona aparecerá ausente cada día hábil de ese período en «Hoy», en el parte diario y en el calendario de licencias.</p>' : ''}${campos([
     { k: 'nombre', label: 'Docente ausente', req: 1, list: 'dl-func', ph: 'Escribe para buscar o ingresa un nombre libre' },
-    { k: 'tipo', label: 'Motivo', type: 'select', options: Object.entries(L.AUS_TIPOS) },
+    { k: 'tipo', label: 'Motivo', type: 'select', options: tipos },
     { k: 'jornada', label: 'Tramo', type: 'seg', options: [['AMBAS', 'Día completo'], ['MANANA', 'Mañana'], ['TARDE', 'Tarde (desde 14:00)'], ['HORAS', 'Por horas']] },
     { k: 'h_ini', label: 'Desde la hora', type: 'time', w: 'half horas' }, { k: 'h_fin', label: 'Hasta la hora', type: 'time', w: 'half horas' },
-    { k: 'fecha', label: 'Desde', type: 'date', req: 1, w: 'half' }, { k: 'hasta', label: 'Hasta (opcional)', type: 'date', w: 'half' }, { k: 'nota', label: 'Observación', ph: 'Ej.: deja guía en UTP' }], a)}<div id="prev"></div></form>`, pie(!!id, 'aus'));
+    { k: 'fecha', label: 'Desde', type: 'date', req: 1, w: 'third' }, { k: 'hasta', label: lic ? 'Hasta' : 'Hasta (opcional)', type: 'date', w: 'third' }, { k: 'dias', label: 'Días corridos', type: 'number', w: 'third', hint: 'Calcula la fecha de término' },
+    { k: 'nota', label: 'Observación', ph: lic ? 'Ej.: licencia N°, reemplazante contratado' : 'Ej.: deja guía en UTP' }], a)}<div id="prev"></div></form>`, pie(!!id, 'aus'));
   previaAusencia();
 }
 function funcPorNombre(n) { const k = L.norm(n); return k && all('funcionarios').find(f => L.norm(f.nombre) === k); }
@@ -542,10 +586,10 @@ function guardar(f) {
   else if (f === 'aus') {
     if (o.hasta && o.hasta < o.fecha) return toast('La fecha "hasta" es anterior al inicio', 'err');
     if (o.jornada === 'HORAS') { if (!(o.h_ini && o.h_fin && L.tmin(o.h_fin) > L.tmin(o.h_ini))) return toast('Indica la hora de inicio y de término de la ausencia', 'err'); o.jornada = o.h_ini + '-' + o.h_fin; }
-    delete o.h_ini; delete o.h_fin;
+    delete o.h_ini; delete o.h_fin; delete o.dias;
     const fu = funcPorNombre(o.nombre), prev = get('ausencias', id) || {};
     put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: id || S.uid('AU') });
-    ui.fecha = o.fecha; if (!id) location.hash = '#hoy';
+    if (!form.dataset.lic) { ui.fecha = o.fecha; if (!id) location.hash = '#hoy'; } else toast(`Registrada: ${nombreParte(fu ? fu.nombre : o.nombre)} · ${L.fechaCorta(o.fecha)}${o.hasta && o.hasta !== o.fecha ? ' al ' + L.fechaCorta(o.hasta) : ''}`, 'ok');
   }
   else if (f === 'pry' || f === 'tar') { if (!P.guardarPlan(f, o, id)) return; }
   else if (f === 'cum') { o.dia = +o.dia; o.mes = +o.mes; if (!(o.dia >= 1 && o.dia <= 31)) return toast('El día debe estar entre 1 y 31', 'err'); const fu = funcPorNombre(o.nombre); put('cumpleanos', { ...o, nombre: fu ? fu.nombre : o.nombre, id: id || S.uid('CU') }); }
@@ -584,7 +628,9 @@ const A = {
   'det-add': el => { const c = el.closest('.detedit').querySelector('.drows'); c.insertAdjacentHTML('beforeend', filaDet(el.dataset.t === 'sub' ? { sub: '' } : {})); const n = c.lastElementChild.querySelector('input'); if (n) n.focus(); },
   'det-del': el => el.closest('.drow').remove(),
   'rut-mes': () => { ui.rutMes = !ui.rutMes; },
-  'nueva-mat': el => { if (adm()) mCrud('matriz', '', { dia: +el.dataset.d, categoria: 'TALLER_ACLE' }); },
+  'nueva-mat': el => { if (adm()) mCrud('matriz', '', { dia: +el.dataset.d, categoria: el.dataset.c || 'TALLER_ACLE' }); },
+  hsec: el => { ui.hSec = el.dataset.v; }, 'mat-cat': el => { ui.matCat = el.dataset.v; }, 'lic-mes': el => { ui.licMes = el.dataset.v; }, 'lic-tipo': el => { ui.licTipo = el.dataset.v; },
+  'nueva-lic': (el, e) => { if (e && e.target.closest('[data-a=edit-aus]') && e.target.closest('[data-a=edit-aus]') !== el) return; mAusencia('', { lic: 1, fecha: el.dataset.f }); },
   'mas-det': el => { const d = el.nextElementSibling, ab = d.hidden; d.hidden = !ab; el.setAttribute('aria-expanded', ab); el.firstChild.textContent = ab ? 'Ocultar detalles' : 'Todos los detalles'; if (ab) { const f = d.querySelector('select,input'); if (f && matchMedia('(pointer:fine)').matches) f.focus(); } },
   'ver-dup': () => mDuplicados(),
   'ok-dup': () => { const sel = [...document.querySelectorAll('[data-par]:checked')].map(x => x.dataset.par); const pares = L.paresDuplicados(); let n = 0; for (const [a, b] of pares) if (sel.includes(a.id + '|' + b.id)) { put('eventos', L.fusionar(a, b)); del('eventos', b.id); n++; } cerrarModal(); toast(`${n} evento${n === 1 ? '' : 's'} fusionado${n === 1 ? '' : 's'}`, 'ok'); },
@@ -644,6 +690,11 @@ document.addEventListener('input', e => {
   const el = e.target;
   if (el.dataset && el.dataset.c === 'q') { ui.q = el.value; const p = el.selectionStart; delete el.dataset.inline; render(); const n = $('[data-c=q]'); n.focus(); n.setSelectionRange(p, p); }
   if (el.closest('[data-form=aus]') && el.name === 'nombre') previaAusencia();
+  if (el.closest('[data-form=aus]') && ['dias', 'fecha', 'hasta'].includes(el.name)) { // período: días corridos ⇄ fecha de término
+    const f = el.closest('form'), de = f.querySelector('[name=fecha]').value, ha = f.querySelector('[name=hasta]'), di = f.querySelector('[name=dias]');
+    if (el.name === 'hasta') { if (de && ha.value >= de) di.value = diasEntre(de, ha.value); }
+    else if (de && (el.name === 'dias' ? +di.value >= 1 : +di.value >= 1)) ha.value = L.addDias(de, Math.min(366, +di.value) - 1);
+  }
   if (el.name === 'hora' && el.closest('[data-form=ev]')) { // el horario define la jornada (desde 14:00 = tarde)
     const m = /^\s*(\d{1,2})[:.](\d{2})/.exec(el.value), r = m && el.closest('form').querySelector(`[name=jornada][value=${+m[1] * 60 + +m[2] < 840 ? 'MANANA' : 'TARDE'}]`); if (r) r.checked = true; }
 });
@@ -657,7 +708,7 @@ initDrag((src, dst) => {
 });
 
 // ============ arranque ============
-function ruta() { const h = location.hash.slice(1); ui.view = VISTAS.some(v => v[0] === h) || h === 'config' || h === 'plan' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
+function ruta() { let h = location.hash.slice(1); if (h === 'espacios') { h = 'horarios'; ui.hSec = 'esp'; } ui.view = VISTAS.some(v => v[0] === h) || h === 'config' || h === 'plan' ? h : 'hoy'; cerrarModal(); render(); window.scrollTo(0, 0); }
 S.cargarLocal();
 if (S.puedeEditar()) {
   const mig = all('eventos').map(L.migrarEvento).filter(Boolean); if (mig.length) S.bulk('eventos', mig); // nombres de columnas anteriores
@@ -689,6 +740,7 @@ document.addEventListener('click', e => {
 }, true);
 $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join('');
 $('#brand').textContent = CFG.COLEGIO || 'SIG-UTP';
+{ const g = document.querySelector('.tools a[href="#config"] .ic'); if (g) g.innerHTML = ic('gear'); } // engranaje también en la página servida por Apps Script
 ruta();
 if (S.nube) { if (!S.modoGAS) S.iniciarGoogle($('#gbtn'), () => { $('#login').hidden = true; S.sincronizar(); }); if (S.sesionValida()) S.sincronizar(); }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
