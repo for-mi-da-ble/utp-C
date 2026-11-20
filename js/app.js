@@ -354,6 +354,15 @@ function vMat() {
      <div class="matg">${[1, 2, 3, 4, 5].map(col).join('')}</div>${adm() ? '<p class="muted sm">Toca una actividad para editarla o eliminarla.</p>' : ''}`;
 }
 
+/** Licencias médicas que tocan el mes: inicio, término, días y reemplazos (toca una fila para asignarlos). */
+function licMes(mes) {
+  const ini = mes + '-01', fin = L.addDias(L.iso(new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5), 1))), -1), hoy = L.hoy();
+  const l = all('ausencias').filter(a => a.tipo === 'LICENCIA' && a.fecha <= fin && (a.hasta || a.fecha) >= ini).sort((a, b) => a.fecha.localeCompare(b.fecha) || L.porApellido(a.nombre, b.nombre));
+  const est = a => (a.hasta || a.fecha) < hoy ? ['Terminada', 'gray'] : a.fecha > hoy ? ['Próxima', 'blue'] : ['En curso', 'pink'];
+  return `<div class="card"><div class="ch"><h3>Licencias médicas de ${L.MESES[+mes.slice(5) - 1].toLowerCase()}</h3>${ed() ? `<button class="btn sm" data-a="nueva-lic">${ic('plus')} Nueva licencia</button>` : ''}</div>${l.length ? `<table class="tbl lic-tbl"><thead><tr><th>Funcionario/a</th><th>Inicio</th><th>Término</th><th>Días</th><th>Reemplazos</th><th>Estado</th></tr></thead><tbody>${l.map(a => { const r = resumenReemp(a), e = est(a);
+    return `<tr data-a="reemp" data-id="${a.id}"><td><b>${esc(nc(a.nombre))}</b></td><td>${L.fechaCorta(a.fecha)}</td><td>${L.fechaCorta(a.hasta || a.fecha)}</td><td>${diasEntre(a.fecha, a.hasta || a.fecha)}</td><td class="${r ? '' : 'sin-r'}">${esc(r || 'Sin reemplazo · asignar')}</td><td><span class="tag ${e[1]}">${e[0]}</span></td></tr>`; }).join('')}</tbody></table>`
+    : '<p class="muted">No hay licencias médicas en este mes.</p>'}</div>`;
+}
 /** Días administrativos usados en el año por cada funcionario (días hábiles; ½ día cuenta 0,5). */
 function adminAnual(y) {
   const por = new Map(), ini = `${y}-01-01`, fin = `${y}-12-31`;
@@ -375,6 +384,37 @@ function adminAnual(y) {
     : `<p class="muted">No hay días administrativos registrados en ${y}.</p>`}<p class="muted sm">${filas.length} personas · ${ceros} sin días administrativos en ${y}. Se cuentan los días hábiles (lunes a viernes) de cada permiso; el ½ día administrativo suma 0,5.</p></div>`;
 }
 /** Licencias médicas y permisos administrativos en vista de calendario (lunes a viernes). */
+/** Resumen de los reemplazos de un período: "Ana Pérez" o "3°MC: Ana Pérez · 2°MB: Luis Soto". */
+function resumenReemp(a) {
+  const c = L.cob(a), r = c['*|*'] ? [nc(c['*|*'])] : [];
+  for (const k of Object.keys(c)) if (k.startsWith('*|') && k !== '*|*') r.push(`${cursoCorto(k.slice(2))}: ${c[k] ? nc(c[k]) : 'sin reemplazo'}`);
+  const d = Object.keys(c).filter(k => !k.startsWith('*|') && c[k]).length;
+  return r.concat(d ? [`${d} bloque${d > 1 ? 's' : ''} asignado${d > 1 ? 's' : ''} por día`] : []).join(' · ');
+}
+const DIA3 = d => L.DIAS[d].slice(0, 3);
+/** Ficha de una licencia o permiso: inicio, término, días y reemplazos por curso para todo el período. */
+function mReemplazos(id, nuevo) {
+  const a = get('ausencias', id); if (!a) return; const c = L.cob(a), cs = L.cursosDelPeriodo(a), fin = a.hasta || a.fecha;
+  let habiles = 0; for (let f = a.fecha; f <= fin; f = L.addDias(f, 1)) if (L.dow(f) <= 5) habiles++;
+  const corridos = diasEntre(a.fecha, fin), unDia = habiles === 1, f1 = (() => { let f = a.fecha; while (L.dow(f) > 5 && f < fin) f = L.addDias(f, 1); return f; })();
+  const val = k => ('*|' + k) in c ? c['*|' + k] : (c['*|*'] || '');
+  const sug = r => { if (!unDia || !ed()) return ''; const t = r.tramos.find(x => x.dia === L.dow(f1)); if (!t) return '';
+    return L.candidatos(f1, t.ini, t.fin, r.curso).filter(p => p.grupo !== 'OTRO').slice(0, 4).map(p => `<button type="button" class="chip sm ${L.GRUPOS[p.grupo].k}" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)}">${esc(nc(p.nombre))}</button>`).join(''); };
+  const filas = cs.map(r => `<tr><td><b>${esc(r.curso || r.detalle)}</b>${r.curso ? `<small>${esc(materia(r.bloques[0]))}</small>` : ''}</td><td class="sm">${r.tramos.map(t => `${DIA3(t.dia)} ${t.ini}–${t.fin}`).join('<br>')}</td>
+    <td><input class="rp" data-k="${esc(r.clave)}" list="dl-func" value="${esc(val(r.clave))}" placeholder="Nombre del reemplazo" ${ed() ? '' : 'disabled'}><div class="chips rp-chips">${ed() ? `<button type="button" class="chip sm g-gris" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.NO_REQUIERE)}">No requiere</button>` : ''}${sug(r)}</div></td></tr>`).join('');
+  const dato = (k, v) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`;
+  modal(`${a.tipo === 'LICENCIA' ? 'Licencia médica' : L.AUS_TIPOS[a.tipo] || 'Ausencia'} · ${nc(a.nombre)}`,
+    `${nuevo ? `<div class="alert green">${ic('check')}<div>Registrada. Ahora indica quién reemplaza en cada curso durante el período (puedes hacerlo después desde el calendario de licencias).</div></div>` : ''}
+     <div class="sel flat lic-ficha">${dato('Inicio', L.fechaCorta(a.fecha))}${dato('Término', L.fechaCorta(fin))}${dato(a.tipo === 'LICENCIA' ? 'Días corridos' : 'Días hábiles', a.tipo === 'LICENCIA' ? corridos : (a.tipo === 'ADMIN_MEDIO' ? '½' : habiles))}${dato('Tramo', esc(L.textoTramo(a.jornada) || 'Día completo'))}</div>
+     ${a.nota ? `<p class="muted sm">${esc(a.nota)}</p>` : ''}
+     <form class="rp-form" data-form="reemp" data-id="${esc(id)}">
+       <div class="rp-todo"><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(c['*|*'] || '')}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
+       ${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
+        : `<p class="muted">${a.func_id ? 'No tiene clases lectivas en este período.' : 'Persona fuera de la nómina: sin horario registrado. Indica el reemplazo para todo el período.'}</p>`}
+       <p class="muted sm">El reemplazo por curso se aplica a todas sus horas entre el ${L.fechaCorta(a.fecha)} y el ${L.fechaCorta(fin)}. En «Hoy» puedes cambiar un bloque de un día específico.</p>
+     </form>`,
+    ed() ? `<button class="btn" data-a="edit-aus" data-id="${esc(id)}">Editar fechas y datos</button><span class="grow"></span><button class="btn dark" data-a="rp-guardar">${ic('check')} Guardar reemplazos</button>` : '', 'wide');
+}
 const TIPO_LIC = a => a.tipo === 'LICENCIA' ? 'lic' : (a.tipo === 'ADMINISTRATIVO' || a.tipo === 'ADMIN_MEDIO') ? 'adm' : 'otra';
 function vLic() {
   if (!ui.licMes) ui.licMes = ui.fecha.slice(0, 7);
@@ -385,7 +425,7 @@ function vLic() {
   do {
     for (let i = 0; i < 5; i++) {
       const f = L.addDias(d, i), en = L.pd(f).getUTCMonth() === m, l = aus.filter(a => L.ausActiva(a, f)).sort((a, b) => TIPO_LIC(a).localeCompare(TIPO_LIC(b)) || L.porApellido(a.nombre, b.nombre));
-      g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="edit-aus" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(a.nombre))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
+      g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="reemp" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(a.nombre))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
     }
     d = L.addDias(d, 7);
   } while (L.pd(d).getUTCMonth() === m && d.slice(0, 7) === ui.licMes);
@@ -397,8 +437,9 @@ function vLic() {
     `<div class="pills scroll"><div class="datenav"><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, -1)}" aria-label="Mes anterior">${ic('left')}</button><button class="pill" data-a="lic-mes" data-v="${hoy.slice(0, 7)}">${L.MESES[m]}</button><button class="ibtn" data-a="lic-mes" data-v="${mesTxt(0, 1)}" aria-label="Mes siguiente">${ic('right')}</button></div><span class="sep"></span>
      ${[['LA', 'Licencias y administrativos'], ['lic', 'Licencias médicas'], ['adm', 'Administrativos'], ['TODAS', 'Todas las ausencias']].map(([k, n]) => `<button class="pill sm ${ui.licTipo === k ? 'on' : ''}" data-a="lic-tipo" data-v="${k}">${k === 'lic' || k === 'adm' ? `<span class="lic-dot ${k}"></span>` : ''}${n}</button>`).join('')}</div>
      <div class="card nopad"><div class="cal cal5">${g}</div></div>
-     ${adminAnual(y)}
-     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="edit-aus" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(a.nombre))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>`;
+     ${licMes(ui.licMes)}
+     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="reemp" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(a.nombre))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span><span class="${resumenReemp(a) ? '' : 'sin-r'}">${esc(resumenReemp(a) || 'Sin reemplazo')}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>
+     ${adminAnual(y)}`;
 }
 
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
@@ -608,7 +649,9 @@ function guardar(f) {
     if (o.jornada === 'HORAS') { if (!(o.h_ini && o.h_fin && L.tmin(o.h_fin) > L.tmin(o.h_ini))) return toast('Indica la hora de inicio y de término de la ausencia', 'err'); o.jornada = o.h_ini + '-' + o.h_fin; }
     delete o.h_ini; delete o.h_fin; delete o.dias;
     const fu = funcPorNombre(o.nombre), prev = get('ausencias', id) || {};
-    put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: id || S.uid('AU') });
+    const nid = id || S.uid('AU');
+    put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: nid });
+    if (!id && /^(LICENCIA|ADMINISTRATIVO|ADMIN_MEDIO)$/.test(o.tipo)) { if (!form.dataset.lic) ui.fecha = o.fecha; setTimeout(() => mReemplazos(nid, true), 60); return; } // reemplazos de inmediato
     if (!form.dataset.lic) { ui.fecha = o.fecha; if (!id) location.hash = '#hoy'; } else toast(`Registrada: ${nombreParte(fu ? fu.nombre : o.nombre)} · ${L.fechaCorta(o.fecha)}${o.hasta && o.hasta !== o.fecha ? ' al ' + L.fechaCorta(o.hasta) : ''}`, 'ok');
   }
   else if (f === 'pry' || f === 'tar') { if (!P.guardarPlan(f, o, id)) return; }
@@ -632,7 +675,12 @@ function borrar(btn, f) {
   if (t === 'cursos' && all('bloques').some(b => b.curso_id === form.dataset.id)) return toast('El curso tiene bloques de horario: no se puede eliminar', 'err');
   del(t, form.dataset.id); cerrarModal(); toast('Eliminado');
 }
-function setCob(id, k, nombre) { const a = get('ausencias', id); if (!a) return; const c = L.cob(a); for (const x of String(k).split(',')) if (nombre) c[x] = nombre; else delete c[x]; put('ausencias', { ...a, cobertura: JSON.stringify(c) }); }
+function setCob(id, k, nombre) {
+  const a = get('ausencias', id); if (!a) return; const c = L.cob(a);
+  for (const x of String(k).split(',')) { const b = get('bloques', x.split('|')[1]), regla = b && (c['*|' + L.cursoClave(b)] || c['*|*']);
+    if (nombre) c[x] = nombre; else if (regla) c[x] = ''; else delete c[x]; } // quitar un reemplazo de período solo ese día deja la marca vacía
+  put('ausencias', { ...a, cobertura: JSON.stringify(c) });
+}
 function swap(pref, a, b) { // intercambia día/horario de los bloques de dos celdas
   if (a === b || !adm()) return; const [, ca, da] = a.split(':'), [, cb, db] = b.split(':');
   const base = pref === 'hc' ? all('bloques').filter(x => x.curso_id === ui.curso && (x.tipo === 'CLASE' || x.tipo === 'CODOC')) : all('bloques').filter(x => x.func_id === ui.func);
@@ -649,7 +697,23 @@ const A = {
   'det-del': el => el.closest('.drow').remove(),
   'rut-mes': () => { ui.rutMes = !ui.rutMes; },
   'nueva-mat': el => { if (adm()) mCrud('matriz', '', { dia: +el.dataset.d, categoria: el.dataset.c || 'TALLER_ACLE' }); },
-  hsec: el => { ui.hSec = el.dataset.v; }, 'mat-cat': el => { ui.matCat = el.dataset.v; }, 'lic-mes': el => { ui.licMes = el.dataset.v; }, 'lic-tipo': el => { ui.licTipo = el.dataset.v; },
+  hsec: el => { ui.hSec = el.dataset.v; },
+  reemp: el => mReemplazos(el.dataset.id),
+  'rp-sug': el => { const i = [...document.querySelectorAll('.rp')].find(x => x.dataset.k === el.dataset.k); if (i) i.value = el.dataset.n; },
+  'rp-todos': () => { const v = $('#rp-todo').value.trim(); if (!v) return toast('Escribe primero el nombre del reemplazo', 'err'); document.querySelectorAll('.rp').forEach(i => i.value = v); },
+  'rp-guardar': () => {
+    const f = $('[data-form=reemp]'), a = get('ausencias', f.dataset.id); if (!a) return;
+    const c = Object.fromEntries(Object.entries(L.cob(a)).filter(([k]) => !k.startsWith('*|'))), todo = $('#rp-todo').value.trim(), ins = [...f.querySelectorAll('.rp')];
+    const vals = ins.map(i => [i.dataset.k, i.value.trim() || todo]);
+    if (!ins.length) { if (todo) c['*|*'] = todo; }
+    else { // el nombre más repetido queda para todo el período y se guardan solo las excepciones por curso
+      const n = {}; for (const [, v] of vals) if (v) n[v] = (n[v] || 0) + 1;
+      const moda = Object.keys(n).sort((x, y) => n[y] - n[x])[0];
+      if (moda && n[moda] > 1) { c['*|*'] = moda; for (const [k, v] of vals) if (v !== moda) c['*|' + k] = v; }
+      else for (const [k, v] of vals) if (v) c['*|' + k] = v;
+    }
+    put('ausencias', { ...a, cobertura: JSON.stringify(c) }); cerrarModal(); toast('Reemplazos guardados', 'ok');
+  }, 'mat-cat': el => { ui.matCat = el.dataset.v; }, 'lic-mes': el => { ui.licMes = el.dataset.v; }, 'lic-tipo': el => { ui.licTipo = el.dataset.v; },
   'nueva-lic': (el, e) => { if (e && e.target.closest('[data-a=edit-aus]') && e.target.closest('[data-a=edit-aus]') !== el) return; mAusencia('', { lic: 1, fecha: el.dataset.f }); },
   'mas-det': el => { const d = el.nextElementSibling, ab = d.hidden; d.hidden = !ab; el.setAttribute('aria-expanded', ab); el.firstChild.textContent = ab ? 'Ocultar detalles' : 'Todos los detalles'; if (ab) { const f = d.querySelector('select,input'); if (f && matchMedia('(pointer:fine)').matches) f.focus(); } },
   'ver-dup': () => mDuplicados(),

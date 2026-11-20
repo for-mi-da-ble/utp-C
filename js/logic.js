@@ -100,7 +100,25 @@ export function afectados(a, fecha) {
   const d = dow(fecha), c = cob(a);
   return all('bloques').filter(b => b.func_id === a.func_id && +b.dia === d && b.tipo === 'CLASE' && enJornada(a.jornada, b.ini, b.fin))
     .sort((x, y) => tmin(x.ini) - tmin(y.ini))
-    .map(b => ({ b, key: fecha + '|' + b.id, cod: bloqueDe(b.ini, b.fin), cubre: c[fecha + '|' + b.id] || '' }));
+    .map(b => ({ b, key: fecha + '|' + b.id, cod: bloqueDe(b.ini, b.fin), cubre: cubreDe(c, fecha + '|' + b.id, b) }));
+}
+// Reemplazos de un período (licencias, administrativos): reglas compactas en `cobertura`
+//   "*|<curso>": quien reemplaza en ese curso todo el período · "*|*": quien reemplaza todo.
+// Una asignación hecha para un bloque y día ("fecha|bloque") manda sobre la regla (vacía = sin cubrir ese día).
+export const cursoClave = b => b.curso_id || b.detalle || '—';
+export function cubreDe(c, key, b) { if (key in c) return c[key]; const k = '*|' + cursoClave(b); return (k in c ? c[k] : c['*|*']) || ''; }
+/** Cursos que deja una ausencia en todo su período: [{ clave, curso, materia, horario: ['Lun 08:00–09:30', …], bloques, dias }]. */
+export function cursosDelPeriodo(a) {
+  if (!a.func_id) return [];
+  const dias = new Set(); for (let f = a.fecha; f <= (a.hasta || a.fecha); f = addDias(f, 1)) { if (dow(f) <= 5) dias.add(dow(f)); if (dias.size === 5) break; }
+  const m = new Map();
+  for (const b of all('bloques').filter(b => b.func_id === a.func_id && b.tipo === 'CLASE' && dias.has(+b.dia) && enJornada(a.jornada, b.ini, b.fin)).sort((x, y) => x.dia - y.dia || tmin(x.ini) - tmin(y.ini))) {
+    const k = cursoClave(b), r = m.get(k) || { clave: k, curso: b.curso_id || '', detalle: b.detalle || '', bloques: [], tramos: [] };
+    const t = r.tramos[r.tramos.length - 1];
+    if (t && t.dia === +b.dia && t.fin === b.ini) t.fin = b.fin; else r.tramos.push({ dia: +b.dia, ini: b.ini, fin: b.fin });
+    r.bloques.push(b); m.set(k, r);
+  }
+  return [...m.values()];
 }
 /** Los bloques afectados agrupados en tramos: horas seguidas con el mismo curso y asignatura (como en el horario). */
 export function tramos(a, fecha) {

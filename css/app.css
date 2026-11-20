@@ -353,3 +353,14 @@ h4.cob-g.g-verde { color: #14692b; } h4.cob-g.g-amarillo { color: #6e5100; } h4.
 @media (max-width: 760px) { .adm-tbl td:nth-child(5), .adm-tbl th:nth-child(5) { display: none; } }
 .adm-tbl td { white-space: normal; } .adm-tbl tbody tr { cursor: default; }
 .adm-tbl tr.cero td { color: var(--mut); } .adm-tbl tr.cero td b { font-weight: 500; }
+/* Licencias: ficha con reemplazos por curso */
+.lic-row { grid-template-columns: auto 1.3fr .9fr 1.2fr 1.4fr; } .sin-r { color: #b3261e; font-weight: 600; }
+.lic-ficha { margin-bottom: 10px; } .rp-todo { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; } .rp-todo .fld { flex: 1; min-width: 220px; margin: 0; }
+.rp-tbl td { white-space: normal; vertical-align: top; } .rp-tbl tbody tr { cursor: default; } .rp-tbl td small { display: block; color: var(--mut); font-size: 12px; }
+.rp-tbl input.rp { width: 100%; min-width: 180px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; background: #fff; }
+.rp-chips { margin-top: 6px; gap: 6px; } .chip.sm { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+.lic-tbl td { white-space: normal; }
+@media (max-width: 760px) { .rp-tbl th:nth-child(2), .rp-tbl td:nth-child(2) { display: none; } .lic-tbl th:nth-child(4), .lic-tbl td:nth-child(4), .lic-tbl th:nth-child(6), .lic-tbl td:nth-child(6) { display: none; } }
+.rp-form { display: block; } .rp-form .fld { display: flex; flex-direction: column; gap: 6px; } .rp-form .fld label { font-size: 13px; font-weight: 600; color: var(--mut); }
+.rp-form #rp-todo { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; background: #fff; }
+.rp-tbl { width: 100%; } .rp-tbl td:nth-child(2) { white-space: nowrap; font-size: 13px; } .rp-tbl td:first-child { min-width: 120px; }
