@@ -408,7 +408,7 @@ function vEsp() {
   const esp = all('espacios').filter(s => s.edificio === ui.edificio).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
   return head('Espacios', 'Capacidad, encargado y ocupación por bloque de cada dependencia', adm() ? `<button class="btn dark" data-a="edit-esp" data-id="">${ic('plus')} Nuevo espacio</button>` : '') +
     `<div class="pills scroll">${Object.entries(L.EDIFICIOS).map(([k, n]) => `<button class="pill ${k === ui.edificio ? 'on' : ''}" data-a="edif" data-v="${k}">${n}<i>${all('espacios').filter(s => s.edificio === k).length}</i></button>`).join('')}</div>
-     <div class="grid3">${esp.map(s => { const o = ocupacion(s.id), n = Object.keys(o).length, p = Math.round(n / 65 * 100); return `<div class="card kpi esp" data-a="ver-esp" data-id="${esc(s.id)}"><div class="kh"><span class="avatar ${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}">${ic('pin')}</span><span>${esc(s.nombre)}</span><span class="ibtn">${ic('arrow')}</span></div><div class="big">${p}%<sup>${n} bloques/sem.</sup></div><div class="bar"><i class="${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}" style="width:${Math.max(p, 2)}%"></i></div><div class="kf">${s.capacidad ? 'Capacidad ' + esc(s.capacidad) + ' · ' : ''}${esc(s.encargado || 'Sin encargado')}</div></div>`; }).join('') || '<p class="muted">No hay espacios en este edificio.</p>'}</div>`;
+     <div class="grid3">${esp.map(s => { const o = ocupacion(s.id), n = Object.keys(o).length, p = Math.round(n / (L.BLOQUES.length * 5) * 100); return `<div class="card kpi esp" data-a="ver-esp" data-id="${esc(s.id)}"><div class="kh"><span class="avatar ${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}">${ic('pin')}</span><span>${esc(s.nombre)}</span><span class="ibtn">${ic('arrow')}</span></div><div class="big">${p}%<sup>${n} bloques/sem.</sup></div><div class="bar"><i class="${p > 60 ? 'pink' : p > 25 ? 'blue' : 'green'}" style="width:${Math.max(p, 2)}%"></i></div><div class="kf">${s.capacidad ? 'Capacidad ' + esc(s.capacidad) + ' · ' : ''}${esc(s.encargado || 'Sin encargado')}</div></div>`; }).join('') || '<p class="muted">No hay espacios en este edificio.</p>'}</div>`;
 }
 function mEspacio(id) {
   const s = get('espacios', id), o = ocupacion(id), l = lunes(); if (!s) return;
@@ -669,7 +669,17 @@ if (S.puedeEditar()) {
     if (notas.length) S.bulk('eventos', notas); if (all('eventos').length) try { localStorage.setItem('sigutp:mig-nota', '1'); } catch { }
   }
 }
-S.onChange(() => { $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join(''); pedir(true); });
+/** Corrige la base ya cargada (una vez, al abrir o al recibir datos de la nube): salas de mañana y tarde que son la misma. */
+let migrandoSalas = false, tSalas = 0;
+function migrarSalas() {
+  if (!S.esAdmin() || migrandoSalas) return;
+  const u = L.unificarSalas({ espacios: all('espacios'), bloques: all('bloques'), cursos: all('cursos'), matriz: all('matriz'), eventos: all('eventos') }); if (!u) return;
+  migrandoSalas = true;
+  try { S.bulk('espacios', u.espacios); for (const t in u.refs) if (u.refs[t].length) S.bulk(t, u.refs[t]); for (const id of u.borrar) S.del('espacios', id); } finally { migrandoSalas = false; }
+  toast(`Salas unificadas: ${u.borrar.length} duplicados de mañana/tarde pasan a ser una sola sala`, 'ok');
+}
+migrarSalas();
+S.onChange(() => { if (!migrandoSalas) { clearTimeout(tSalas); tSalas = setTimeout(migrarSalas, 300); } $('#dl-func').innerHTML = funcOrd().map(f => `<option value="${esc(f.nombre)}">`).join(''); pedir(true); });
 window.addEventListener('hashchange', ruta);
 // Enlaces internos (#vista): se navega dentro de esta misma página. Con <base> (app servida por Apps Script) un href="#x"
 // apuntaría a GitHub Pages y sacaría al usuario de la versión conectada a la Hoja.

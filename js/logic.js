@@ -332,3 +332,32 @@ export function tipoReunion(m) {
 }
 /** Nombre de taller sin la palabra "Taller(es) (de)" al comienzo: "Taller Ajedrez - 2° ciclo" → "Ajedrez - 2° ciclo". */
 export const sinTaller = t => String(t || '').replace(/^\s*taller(?:es)?\s+(de\s+)?/i, '').trim();
+
+// ---------- espacios: una sala física por número ----------
+// La base de origen separa "Sala 8 (Mañana)" y "Sala 8 (Tarde)", pero es la misma sala usada en dos jornadas.
+const RE_JOR_SALA = /\s*\((mañana|manana|tarde)\)\s*$/i;
+export const baseSala = n => String(n || '').replace(RE_JOR_SALA, '').trim();
+/**
+ * Une las salas que solo se diferencian por "(Mañana)"/"(Tarde)". Recibe las tablas y devuelve qué cambiar:
+ * { espacios: filas nuevas o actualizadas, borrar: ids de espacio que sobran, mapa: id viejo → id nuevo,
+ *   refs: { bloques|cursos|matriz|eventos: filas con la sala reemplazada } }. Sin duplicados devuelve null.
+ */
+export function unificarSalas(T) {
+  const grupos = new Map();
+  for (const e of T.espacios || []) { const k = norm(baseSala(e.nombre)); if (!k) continue; (grupos.get(k) || grupos.set(k, []).get(k)).push(e); }
+  const ids = new Set((T.espacios || []).map(e => e.id)), mapa = new Map(), espacios = [], borrar = [];
+  for (const g of grupos.values()) {
+    const conJ = g.filter(e => RE_JOR_SALA.test(e.nombre)); if (!conJ.length) continue;
+    const ref = conJ[0], base = baseSala(ref.nombre);
+    let dest = g.find(e => !RE_JOR_SALA.test(e.nombre));
+    if (dest) dest = { ...dest, nombre: base, edificio: ref.edificio || dest.edificio, tipo: ref.tipo || dest.tipo };
+    else { let id = 'SALA-' + norm(base).toUpperCase().replace(/[^A-Z0-9]/g, ''); if (ids.has(id)) id += 'U'; ids.add(id); dest = { ...ref, id, nombre: base }; }
+    espacios.push(dest);
+    for (const e of conJ) if (e.id !== dest.id) { mapa.set(e.id, dest.id); borrar.push(e.id); }
+  }
+  if (!mapa.size) return null;
+  const refs = {};
+  for (const [t, c] of [['bloques', 'sala_id'], ['cursos', 'sala_id'], ['matriz', 'sala_id'], ['eventos', 'espacio_id']])
+    refs[t] = (T[t] || []).filter(r => mapa.has(r[c])).map(r => ({ ...r, [c]: mapa.get(r[c]) }));
+  return { espacios, borrar, mapa, refs };
+}

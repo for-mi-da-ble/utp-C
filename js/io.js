@@ -1,6 +1,6 @@
 // Importación / exportación .XLSX (RF-5.1). SheetJS se carga solo cuando se necesita.
 import { all, bulk, uid, del } from './store.js';
-import { BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, enMensual, mismoTitulo, fusionar, migrarEvento, sinTaller, esEspecial, nombreEspacio, EDIFICIOS } from './logic.js';
+import { unificarSalas, BLOQUES, hhmm, tmin, tituloCaso, norm, MESES, DIAS, pd, iso, addDias, dow, lunesDe, jornadaDe, generarSemanas, semanas, seccionDe, enMensual, mismoTitulo, fusionar, migrarEvento, sinTaller, esEspecial, nombreEspacio, EDIFICIOS } from './logic.js';
 
 let cargando;
 export function sheetjs() {
@@ -107,6 +107,11 @@ function importarBD(X, wb) {
     return { id: v(r.ID_Actividad_Semanal), categoria: /acle/i.test(r.Categoria_Actividad) ? 'TALLER_ACLE' : /reforz/i.test(r.Nombre_Actividad) && !/acle/i.test(r.Categoria_Actividad) ? 'REFORZAMIENTO' : 'REUNION_FIJA',
       dia: +r.Orden_Dia, ini: hhmm(r.Hora_Inicio), fin: hhmm(r.Hora_Fin), titulo: /acle/i.test(r.Categoria_Actividad) ? sinTaller(v(r.Nombre_Actividad)) : v(r.Nombre_Actividad), grupo: v(r.Ciclo_o_Departamento), sala_id: v(r.ID_Sala), participantes: v(r.Participantes_Convocados).slice(0, 500) };
   });
+  { // una sala física por número: "Sala 8 (Mañana)" y "Sala 8 (Tarde)" pasan a ser "Sala 8"
+    const u = unificarSalas({ espacios: [...esp.values()], bloques, cursos, matriz });
+    if (u) { for (const id of u.borrar) esp.delete(id); for (const e of u.espacios) esp.set(e.id, e);
+      for (const [lista, c] of [[bloques, 'sala_id'], [cursos, 'sala_id'], [matriz, 'sala_id']]) for (const r of lista) if (u.mapa.has(r[c])) r[c] = u.mapa.get(r[c]); }
+  }
   bulk('funcionarios', func, true); bulk('cursos', cursos, true); bulk('espacios', [...esp.values()], true); bulk('bloques', bloques, true); bulk('matriz', matriz, true);
   if (!all('semanas').length) bulk('semanas', generarSemanas((window.SIG_CONFIG || {}).ANIO || new Date().getFullYear()));
   return `Base de horarios importada: ${func.length} funcionarios, ${cursos.length} cursos, ${esp.size} espacios, ${bloques.length} bloques (${omit} filas de relleno omitidas, ${comp} clases sin docente asignado tomadas de la grilla de cursos) y ${matriz.length} actividades fijas.`;
