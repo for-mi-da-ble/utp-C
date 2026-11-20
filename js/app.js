@@ -363,6 +363,23 @@ function licMes(mes) {
     return `<tr data-a="reemp" data-id="${a.id}"><td><b>${esc(nc(a.nombre))}</b></td><td>${L.fechaCorta(a.fecha)}</td><td>${L.fechaCorta(a.hasta || a.fecha)}</td><td>${diasEntre(a.fecha, a.hasta || a.fecha)}</td><td class="${r ? '' : 'sin-r'}">${esc(r || 'Sin reemplazo · asignar')}</td><td><span class="tag ${e[1]}">${e[0]}</span></td></tr>`; }).join('')}</tbody></table>`
     : '<p class="muted">No hay licencias médicas en este mes.</p>'}</div>`;
 }
+/** Días de licencia médica en el año por funcionario (corridos y hábiles, recortados al año). */
+function licAnual(y) {
+  const por = new Map(), ini = `${y}-01-01`, fin = `${y}-12-31`;
+  for (const a of all('ausencias')) {
+    if (a.tipo !== 'LICENCIA') continue;
+    const de = a.fecha < ini ? ini : a.fecha, ha = (a.hasta || a.fecha) > fin ? fin : (a.hasta || a.fecha); if (de > ha) continue;
+    const fu = a.func_id ? get('funcionarios', a.func_id) : funcPorNombre(a.nombre), k = fu ? fu.id : L.norm(a.nombre);
+    const r = por.get(k) || { nombre: fu ? fu.nombre : a.nombre, n: 0, corridos: 0, habiles: 0, periodos: [] };
+    r.n++; r.corridos += diasEntre(de, ha); for (let f = de; f <= ha; f = L.addDias(f, 1)) if (L.dow(f) <= 5) r.habiles++;
+    r.periodos.push([a.fecha, a.hasta || a.fecha]); por.set(k, r);
+  }
+  for (const f of all('funcionarios')) if (!por.has(f.id)) por.set(f.id, { nombre: f.nombre, n: 0, corridos: 0, habiles: 0, periodos: [] });
+  const filas = [...por.values()].sort((a, b) => b.corridos - a.corridos || L.porApellido(a.nombre, b.nombre)), con = filas.filter(r => r.n).length, sum = k => filas.reduce((s, r) => s + r[k], 0);
+  return `<div class="card"><div class="ch"><h3>Días de licencia médica ${y} por funcionario</h3>${S.nube ? '<button class="btn sm" data-a="recargar-todo">Actualizar desde la Hoja</button>' : ''}</div><table class="tbl adm-tbl"><thead><tr><th>Funcionario/a</th><th>Licencias</th><th>Días corridos</th><th>Días hábiles</th><th>Períodos</th></tr></thead><tbody>${filas.map(r =>
+    `<tr${r.n ? '' : ' class="cero"'}><td><b>${esc(nc(r.nombre))}</b></td><td>${r.n}</td><td><b>${r.corridos}</b></td><td>${r.habiles}</td><td class="muted sm">${esc(r.periodos.sort((a, b) => a[0].localeCompare(b[0])).map(([d, h]) => d === h ? L.fechaCorta(d) : L.fechaCorta(d) + ' al ' + L.fechaCorta(h)).join(', '))}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><th>Total colegio</th><th>${sum('n')}</th><th>${sum('corridos')}</th><th>${sum('habiles')}</th><th></th></tr></tfoot></table><p class="muted sm">${filas.length} personas · ${con} con licencia médica en ${y}. Días corridos de cada licencia dentro del año; días hábiles = lunes a viernes.</p></div>`;
+}
 /** Días administrativos usados en el año por cada funcionario (días hábiles; ½ día cuenta 0,5). */
 function adminAnual(y) {
   const por = new Map(), ini = `${y}-01-01`, fin = `${y}-12-31`;
@@ -439,7 +456,7 @@ function vLic() {
      <div class="card nopad"><div class="cal cal5">${g}</div></div>
      ${licMes(ui.licMes)}
      <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="reemp" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(a.nombre))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span><span class="${resumenReemp(a) ? '' : 'sin-r'}">${esc(resumenReemp(a) || 'Sin reemplazo')}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>
-     ${adminAnual(y)}`;
+     ${ui.licTipo === 'adm' ? adminAnual(y) : ui.licTipo === 'lic' ? licAnual(y) : '<p class="muted sm">Elige «Licencias médicas» o «Administrativos» arriba para ver el total del año por funcionario.</p>'}`;
 }
 
 function filasBloque(jor) { return L.BLOQUES.filter(b => !jor || (jor === 'MANANA' ? b.j === 'M' : b.j === 'T')); }
