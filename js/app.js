@@ -415,10 +415,22 @@ function mReemplazos(id, nuevo) {
   let habiles = 0; for (let f = a.fecha; f <= fin; f = L.addDias(f, 1)) if (L.dow(f) <= 5) habiles++;
   const corridos = diasEntre(a.fecha, fin), unDia = habiles === 1, f1 = (() => { let f = a.fecha; while (L.dow(f) > 5 && f < fin) f = L.addDias(f, 1); return f; })();
   const val = k => ('*|' + k) in c ? c['*|' + k] : (c['*|*'] || '');
-  const sug = r => { if (!unDia || !ed()) return ''; const t = r.tramos.find(x => x.dia === L.dow(f1)); if (!t) return '';
-    return L.candidatos(f1, t.ini, t.fin, r.curso).filter(p => p.grupo !== 'OTRO').slice(0, 4).map(p => `<button type="button" class="chip sm ${L.GRUPOS[p.grupo].k}" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)}">${esc(nc(p.nombre))}</button>`).join(''); };
+  // Sugerencias como en «Hoy»: para cada curso, quienes pueden cubrir TODAS sus horas semanales del período
+  // (fecha representativa: la primera de cada día de la semana dentro del período); el color es el peor de sus tramos.
+  const fechaDia = d => { for (let f = a.fecha; f <= fin; f = L.addDias(f, 1)) if (L.dow(f) === d) return f; return ''; };
+  const candCurso = r => {
+    let res = null;
+    for (const t of r.tramos) { const f = fechaDia(t.dia); if (!f) continue; const m = new Map(L.candidatos(f, t.ini, t.fin, r.curso).map(p => [p.id, p]));
+      if (!res) { res = m; continue; } for (const [pid, p] of res) { const q = m.get(pid); if (!q) res.delete(pid); else if (L.ORDEN_G[q.grupo] > L.ORDEN_G[p.grupo]) res.set(pid, { ...p, grupo: q.grupo }); } }
+    return [...(res || new Map()).values()].sort((x, y) => L.ORDEN_G[x.grupo] - L.ORDEN_G[y.grupo] || x.n - y.n || L.porApellido(x.nombre, y.nombre));
+  };
+  const chipS = (r, p) => `<button type="button" class="chip sm ${L.GRUPOS[p.grupo].k}" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(p.nombre)}" title="${esc(L.GRUPOS[p.grupo].d)} · ${p.n} reemplazo${p.n === 1 ? '' : 's'} este mes">${esc(nc(p.nombre))}<i>${p.n}</i></button>`;
+  const sug = r => { if (!ed()) return '';
+    const c0 = candCurso(r), prim = c0.filter(p => p.grupo === 'PIE_CURSO' || p.grupo === 'PIE_AR'), doc = c0.filter(p => p.grupo === 'DOC'), vis = prim.concat(doc.slice(0, 3)), resto = c0.filter(p => !vis.includes(p));
+    return vis.map(p => chipS(r, p)).join('') + (resto.length ? `<button type="button" class="chip sm g-rojo otros" data-a="rp-mas" data-k="${esc(r.clave)}">Otros (${resto.length})</button><div class="chips rp-mas" data-k="${esc(r.clave)}" hidden>${resto.map(p => chipS(r, p)).join('')}</div>` : '')
+      + (!c0.length ? '<span class="muted sm">Nadie libre en todas sus horas · </span>' : '') + `<button type="button" class="chip sm dark" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button>`; };
   const filas = cs.map(r => `<tr><td><b>${esc(r.curso || r.detalle)}</b>${r.curso ? `<small>${esc(materia(r.bloques[0]))}</small>` : ''}</td><td class="sm">${r.tramos.map(t => `${DIA3(t.dia)} ${t.ini}–${t.fin}`).join('<br>')}</td>
-    <td><input class="rp" data-k="${esc(r.clave)}" list="dl-func" value="${esc(val(r.clave))}" placeholder="Nombre del reemplazo" ${ed() ? '' : 'disabled'}><div class="chips rp-chips">${ed() ? `<button type="button" class="chip sm g-gris" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.NO_REQUIERE)}">No requiere</button>` : ''}${sug(r)}</div></td></tr>`).join('');
+    <td><input class="rp" data-k="${esc(r.clave)}" list="dl-func" value="${esc(val(r.clave))}" placeholder="Nombre del reemplazo" ${ed() ? '' : 'disabled'}><div class="chips rp-chips">${sug(r)}${ed() ? `<button type="button" class="chip sm g-gris" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.NO_REQUIERE)}">No requiere</button>` : ''}</div></td></tr>`).join('');
   const dato = (k, v) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`;
   modal(`${a.tipo === 'LICENCIA' ? 'Licencia médica' : L.AUS_TIPOS[a.tipo] || 'Ausencia'} · ${nc(a.nombre)}`,
     `${nuevo ? `<div class="alert green">${ic('check')}<div>Registrada. Ahora indica quién reemplaza en cada curso durante el período (puedes hacerlo después desde el calendario de licencias).</div></div>` : ''}
@@ -426,7 +438,7 @@ function mReemplazos(id, nuevo) {
      ${a.nota ? `<p class="muted sm">${esc(a.nota)}</p>` : ''}
      <form class="rp-form" data-form="reemp" data-id="${esc(id)}">
        <div class="rp-todo"><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(c['*|*'] || '')}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
-       ${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
+       ${cs.length && ed() ? LEYENDA_COB : ''}${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
         : `<p class="muted">${a.func_id ? 'No tiene clases lectivas en este período.' : 'Persona fuera de la nómina: sin horario registrado. Indica el reemplazo para todo el período.'}</p>`}
        <p class="muted sm">El reemplazo por curso se aplica a todas sus horas entre el ${L.fechaCorta(a.fecha)} y el ${L.fechaCorta(fin)}. En «Hoy» puedes cambiar un bloque de un día específico.</p>
      </form>`,
@@ -717,6 +729,7 @@ const A = {
   hsec: el => { ui.hSec = el.dataset.v; },
   reemp: el => mReemplazos(el.dataset.id),
   'rp-sug': el => { const i = [...document.querySelectorAll('.rp')].find(x => x.dataset.k === el.dataset.k); if (i) i.value = el.dataset.n; },
+  'rp-mas': el => { const d = [...document.querySelectorAll('.rp-mas')].find(x => x.dataset.k === el.dataset.k); if (d) { d.hidden = !d.hidden; el.classList.toggle('on', !d.hidden); } },
   'rp-todos': () => { const v = $('#rp-todo').value.trim(); if (!v) return toast('Escribe primero el nombre del reemplazo', 'err'); document.querySelectorAll('.rp').forEach(i => i.value = v); },
   'rp-guardar': () => {
     const f = $('[data-form=reemp]'), a = get('ausencias', f.dataset.id); if (!a) return;

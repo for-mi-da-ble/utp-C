@@ -146,7 +146,7 @@ export const GRUPOS = {
   DOC: { n: 'Docente disponible', d: 'Docente de asignatura en horas no lectivas', k: 'g-rojo' },
   OTRO: { n: 'Otros PIE disponibles', d: 'Equipo PIE libre o en aula de recursos con otro curso', k: 'g-gris' }
 };
-const ORDEN_G = { PIE_CURSO: 0, PIE_AR: 1, DOC: 2, OTRO: 3 };
+export const ORDEN_G = { PIE_CURSO: 0, PIE_AR: 1, DOC: 2, OTRO: 3 };
 const esPIE = f => /pie/i.test(f.estamento || '') || /pie/i.test(f.departamento || '');
 /** ¿Quién puede cubrir el tramo ini–fin del curso? Presentes, sin otra cobertura en ese tramo, clasificados por prioridad. */
 export function candidatos(fecha, ini, fin, curso) {
