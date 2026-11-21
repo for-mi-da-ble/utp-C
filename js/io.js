@@ -244,10 +244,10 @@ const ESQUEMA = {
   ausencias: ['03_Ausencias_Reemplazos', ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura']],
   funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email']],
   espacios: ['05_Espacios_Edificios', ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado']],
-  cursos: ['06_Cursos', ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie']],
-  matriz: ['07_Matriz_Fija_Semanal', ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes']],
+  cursos: ['06_Cursos', ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie', 'profesor_jefe_id', 'equipo_pie_ids']],
+  matriz: ['07_Matriz_Fija_Semanal', ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes', 'participantes_ids']],
   bloques: ['08_Bloques_Docentes', ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id']],
-  cumpleanos: ['09_Cumpleanos', ['id', 'nombre', 'dia', 'mes']],
+  cumpleanos: ['09_Cumpleanos', ['id', 'nombre', 'dia', 'mes', 'func_id']],
   proyectos: ['10_Proyectos', ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden']],
   tareas: ['11_Tareas', ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']]
 };

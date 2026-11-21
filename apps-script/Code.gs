@@ -17,11 +17,11 @@ var TABLAS = {
   eventos: ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'especial', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen'],
   ausencias: ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura'],
   funcionarios: ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email'],
-  cursos: ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie'],
+  cursos: ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie', 'profesor_jefe_id', 'equipo_pie_ids'],
   espacios: ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado'],
   bloques: ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id'],
-  matriz: ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes'],
-  cumpleanos: ['id', 'nombre', 'dia', 'mes'],
+  matriz: ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes', 'participantes_ids'],
+  cumpleanos: ['id', 'nombre', 'dia', 'mes', 'func_id'],
   proyectos: ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden'],
   tareas: ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']
 };

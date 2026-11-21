@@ -134,7 +134,7 @@ export function tramos(a, fecha) {
 /** Conteo de reemplazos realizados por persona en el mes (equidad). */
 export function conteoMes(fecha) {
   const mes = fecha.slice(0, 7), n = {};
-  for (const a of all('ausencias')) { const c = cob(a); for (const k in c) if (k.slice(0, 7) === mes && c[k] && c[k] !== INSPECTORIA && c[k] !== NO_REQUIERE) n[c[k]] = (n[c[k]] || 0) + 1; }
+  for (const a of all('ausencias')) { const c = cob(a); for (const k in c) if (k.slice(0, 7) === mes && c[k] && c[k] !== INSPECTORIA && c[k] !== NO_REQUIERE) { const q = idPersona(c[k]); n[q] = (n[q] || 0) + 1; } }
   return n;
 }
 // Prioridad para cubrir (colores en la app): 1 PIE que está en ese curso a esa hora (verde) · 2 PIE que trabaja con
@@ -153,7 +153,9 @@ export function candidatos(fecha, ini, fin, curso) {
   const d = dow(fecha), A = tmin(ini), B = tmin(fin), aus = ausenciasDe(fecha), cnt = conteoMes(fecha), dur = B - A;
   const fuera = new Set(aus.filter(a => enJornada(a.jornada, ini, fin)).map(a => a.func_id).filter(Boolean));
   const ocupados = new Set(); // ya asignados a cubrir en un tramo que se traslapa
-  for (const a of aus) { const c = cob(a); for (const k in c) { const [f, id] = k.split('|'); if (f !== fecha) continue; const b = get('bloques', id); if (b && tmin(b.ini) < B && tmin(b.fin) > A) ocupados.add(c[k]); } }
+  for (const a of aus) { const c = cob(a); for (const k in c) { const [f, id] = k.split('|'); if (f !== fecha) continue; const b = get('bloques', id); if (b && tmin(b.ini) < B && tmin(b.fin) > A) ocupados.add(idPersona(c[k])); } }
+  // actividades permanentes (reuniones fijas, talleres) a esa hora: sus participantes no están libres
+  for (const m of rutinaDe(fecha)) if (m.participantes_ids && tmin(m.ini) < B && tmin(m.fin) > A) for (const pid of String(m.participantes_ids).split(',')) ocupados.add(pid.trim());
   const por = {}, enCurso = new Set();
   for (const b of all('bloques')) {
     if (curso && b.curso_id === curso && (b.tipo === 'CODOC' || b.tipo === 'AULAREC')) enCurso.add(b.func_id);
@@ -163,7 +165,7 @@ export function candidatos(fecha, ini, fin, curso) {
   const out = [];
   for (const id in por) {
     if (fuera.has(id)) continue;
-    const bs = por[id], f = get('funcionarios', id); if (!f || ocupados.has(f.nombre)) continue;
+    const bs = por[id], f = get('funcionarios', id); if (!f || ocupados.has(f.id)) continue;
     const solapa = b => Math.min(tmin(b.fin), B) - Math.max(tmin(b.ini), A);
     const libre = b => b.tipo === 'NOLECT' || b.tipo === 'AULAREC', pie = esPIE(f);
     let g = '';
@@ -175,7 +177,7 @@ export function candidatos(fecha, ini, fin, curso) {
       else g = 'OTRO';
     }
     if (!g) continue;
-    out.push({ id, nombre: f.nombre, grupo: g, tipo: bs.some(b => b.tipo === 'NOLECT') ? 'NOLECT' : 'AULAREC', n: cnt[f.nombre] || 0 });
+    out.push({ id, nombre: f.nombre, grupo: g, tipo: bs.some(b => b.tipo === 'NOLECT') ? 'NOLECT' : 'AULAREC', n: cnt[f.id] || 0 });
   }
   return out.sort((x, y) => ORDEN_G[x.grupo] - ORDEN_G[y.grupo] || x.n - y.n || porApellido(x.nombre, y.nombre));
 }
@@ -231,9 +233,14 @@ export function partesNombre(n) {
   return { nombre: p[0], apellido: p.length >= 4 ? p[p.length - 2] : p[1] };
 }
 /** "Leyton Opazo Paula Javiera" → "Paula Leyton"; "Romina Rodríguez Lobos" → "Romina Rodríguez". Otros textos quedan igual. */
-export function nombreCorto(n) { const q = partesNombre(n); return q ? `${q.nombre} ${q.apellido}` : String(n || ''); }
+/** Valores que pueden ser un ID de funcionario ("F80") o un texto libre ("Reemplazante externo"). */
+export const esIdF = v => /^F\d+$/.test(String(v || '').trim());
+export function persona(v) { const s = String(v || '').trim(); if (esIdF(s)) { const f = get('funcionarios', s); return f ? f.nombre : s; } return s; }
+/** ID de la persona si está en la nómina (por ID o por nombre exacto); si no, el mismo texto. */
+export function idPersona(v) { const s = String(v || '').trim(); if (!s || esIdF(s)) return s; const f = funcDeNombre(s); return f ? f.id : s; }
+export function nombreCorto(n) { n = persona(n); const q = partesNombre(n); return q ? `${q.nombre} ${q.apellido}` : String(n || ''); }
 /** Clave para ordenar por primer apellido (y luego primer nombre). */
-export function claveApellido(n) { const q = partesNombre(n); return norm(q ? q.apellido + ' ' + q.nombre : n); }
+export function claveApellido(n) { n = persona(n); const q = partesNombre(n); return norm(q ? q.apellido + ' ' + q.nombre : n); }
 export const porApellido = (a, b) => claveApellido(a).localeCompare(claveApellido(b), 'es');
 export function tituloCaso(s) { return String(s || '').toLowerCase().replace(/(^|[\s.\-/(])([a-záéíóúñ])/g, (m, a, b) => a + b.toUpperCase()); }
 

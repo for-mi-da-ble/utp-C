@@ -12,7 +12,16 @@ const ed = () => S.puedeEditar(), adm = () => S.esAdmin();
 const lunes = () => L.lunesDe(ui.fecha);
 const cursosOrd = () => all('cursos').slice().sort((a, b) => a.orden - b.orden);
 const funcOrd = () => all('funcionarios').slice().sort((a, b) => L.porApellido(a.nombre, b.nombre));
-const nc = n => L.nombreCorto(n); // nombre para mostrar: primer nombre y primer apellido
+const nc = n => L.nombreCorto(n); // nombre para mostrar (acepta ID "F80" o texto): primer nombre y primer apellido
+const nomAus = a => L.persona(a.func_id) && get('funcionarios', a.func_id) ? get('funcionarios', a.func_id).nombre : a.nombre; // nombre de la nómina si la ausencia tiene ID
+const jefaturaDe = f => (all('cursos').find(c => c.profesor_jefe_id === f.id) || {}).id || f.jefatura || ''; // fuente única: Cursos
+const equipoPie = c => c.equipo_pie_ids ? c.equipo_pie_ids.split(',').map(x => nc(x.trim())).join(', ') : (c.equipo_pie || '');
+/** Crea una ficha nueva en la nómina (solo administración) y devuelve su ID. */
+function crearFuncionario(nombre) {
+  const n = Math.max(0, ...all('funcionarios').map(f => +(/^F(\d+)$/.exec(f.id) || [0, 0])[1])) + 1, id = 'F' + n;
+  put('funcionarios', { id, nombre: nombre.trim(), estamento: 'Otro', departamento: '', cargo: 'Por completar', jefatura: '', horas_contrato: '', horas_lectivas: '', horas_no_lectivas: '', email: '' });
+  return id;
+}
 const fn = id => (get('funcionarios', id) || {}).nombre || (id ? '' : 'Por asignar');
 const materia = b => { const d = String(b.detalle || ''); const p = d.split('·'); return (p.length > 1 ? p[p.length - 1] : d.replace(/^\s*\d\s*[º°]\s*(medio|b[aá]sico)\s*[a-d]\b/i, '')).trim() || d; };
 const rango = b => `${b.ini}–${b.fin}`;
@@ -62,7 +71,7 @@ function sinClasesTxt(a, fecha) {
 }
 function tarjetaAusencia(a, fecha) {
   const af = L.tramos(a, fecha), jor = L.textoTramo(a.jornada) ? ' · ' + L.textoTramo(a.jornada) : '';
-  return `<div class="aus"><div class="aus-h" data-a="edit-aus" data-id="${a.id}"><span class="avatar pink">${ic('user')}</span><div><b>${esc(nc(a.nombre))}</b><small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}${jor}${a.hasta && a.hasta !== a.fecha ? ` · hasta ${L.fechaCorta(a.hasta)}` : ''}${a.nota ? ' · ' + esc(a.nota) : ''}</small></div></div>
+  return `<div class="aus"><div class="aus-h" data-a="edit-aus" data-id="${a.id}"><span class="avatar pink">${ic('user')}</span><div><b>${esc(nc(nomAus(a)))}</b><small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}${jor}${a.hasta && a.hasta !== a.fecha ? ` · hasta ${L.fechaCorta(a.hasta)}` : ''}${a.nota ? ' · ' + esc(a.nota) : ''}</small></div></div>
     ${af.length ? LEYENDA_COB + af.map(t => `<div class="afe ${t.cubre ? 'ok' : ''}"><div class="afe-i"><span class="blk">${t.codigo}</span><div><b>${esc(t.b.curso_id || t.b.detalle || '—')}</b>${t.b.curso_id ? ' · ' + esc(materia(t.b)) : ''}<small>${t.ini}–${t.fin} · ${esc(L.nombreEspacio(t.b.sala_id) || 'Sala por definir')}</small></div></div>${chipsCobertura(a, t, fecha)}</div>`).join('')
       : `<p class="muted sm pad">${a.func_id ? sinClasesTxt(a, fecha) : 'Persona externa a la nómina: sin horario registrado.'}</p>`}</div>`;
 }
@@ -82,7 +91,7 @@ function vHoy() {
         ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>Sin ausencias registradas para este día.</p></div>`}</div>
       <div class="col">
         <div class="card"><div class="ch"><h3>Actividades del día</h3>${ed() ? `<button class="ibtn" data-a="nuevo-ev" data-f="${f}" aria-label="Agregar actividad">${ic('plus')}</button>` : ''}</div>
-          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.nombre))}</button>`).join('')}</div>` : ''}</div>
+          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.func_id || c.nombre))}</button>`).join('')}</div>` : ''}</div>
         <div class="card parte"><h3>Parte diario</h3><p class="muted sm">Texto y tabla listos para Gmail o WhatsApp con las ausencias, reemplazos y actividades.</p><button class="btn dark wide" data-a="parte">${ic('mail')} Generar parte de las 08:00</button></div>
       </div>
     </div>`;
@@ -130,7 +139,7 @@ function parteDatos(f) {
       if (!tr.length) rem = [{ t: a.func_id ? 'Sin clases que cubrir' : 'Sin reemplazo', mut: 1 }];
       else if (tr.length > 1 && nombres.length === 1 && nombres[0]) rem = [{ t: nombreParte(nombres[0]) }];
       else rem = tr.map(x => ({ t: `${x.ini}–${x.fin} (${x.b.curso_id ? cursoCorto(x.b.curso_id) : x.b.detalle || '—'}) `, fin: x.cubre ? nombreParte(x.cubre) : x.parcial ? 'EN PARTE' : 'POR DEFINIR', mal: !x.cubre }));
-      filas.push([{ t: nombreParte(a.nombre), sub: sub ? [sub] : [] }, rem]);
+      filas.push([{ t: nombreParte(nomAus(a)), sub: sub ? [sub] : [] }, rem]);
     }
     if (filas.length) grupos.push({ t, filas });
   }
@@ -233,7 +242,7 @@ function boletin(l) {
       const evs = L.eventosDe(f), de = k => evs.filter(e => L.seccionDe(e) === k && !L.esEspecial(e)), b = [];
       if (barra !== 'TALLERES') evs.filter(e => L.esEspecial(e) && L.barraDe(L.seccionDe(e)) === barra).forEach(e => b.push(...ev(e, '[!]'))); // notas especiales primero
       if (barra === 'ESTUDIANTES') {
-        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => nc(c.nombre)).join(', '));
+        const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f); if (cs.length) b.push('   ¡FELIZ CUMPLEAÑOS! ' + cs.map(c => nc(c.func_id || c.nombre)).join(', '));
         de('ESTUDIANTES').forEach(e => b.push(...ev(e, '•')));
       } else if (barra === 'TALLERES') { const rut = L.rutinaDe(f, { REFORZAMIENTO: 1, TALLER_ACLE: 1 });
         b.push(...mat('Reforzamiento', rut.filter(m => m.categoria === 'REFORZAMIENTO')), ...mat('Talleres extraescolares', rut.filter(m => m.categoria === 'TALLER_ACLE')));
@@ -266,7 +275,7 @@ function celdaSemana(f, i, barra, E, dups, cum) {
   }
   if (barra === 'ESTUDIANTES') {
     const cs = cum.filter(c => i === 4 ? c.fecha >= f : c.fecha === f);
-    h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(nc(c.nombre))}</button>`)); // 2. cumpleaños (naranja)
+    h += grupo('cum', '🎂 ¡Feliz cumpleaños!', cs.map(c => `<button class="gl cumn" data-a="edit-cum" data-id="${c.id}">${L.dow(c.fecha) > 5 ? `<b>${L.DIAS[L.dow(c.fecha)].slice(0, 3)} ${+c.dia}</b> ` : ''}${esc(nc(c.func_id || c.nombre))}</button>`)); // 2. cumpleaños (naranja)
     h += chips(de('ESTUDIANTES'));                                                                                 // 3. actividades (azul)
   } else if (barra === 'REF' || barra === 'TAL') { // al final del día, en sub-filas propias: así quedan alineados entre días
     const ref = barra === 'REF', rut = L.rutinaDe(f, ref ? { REFORZAMIENTO: 1 } : { TALLER_ACLE: 1 });
@@ -360,7 +369,7 @@ function licMes(mes) {
   const l = all('ausencias').filter(a => a.tipo === 'LICENCIA' && a.fecha <= fin && (a.hasta || a.fecha) >= ini).sort((a, b) => a.fecha.localeCompare(b.fecha) || L.porApellido(a.nombre, b.nombre));
   const est = a => (a.hasta || a.fecha) < hoy ? ['Terminada', 'gray'] : a.fecha > hoy ? ['Próxima', 'blue'] : ['En curso', 'pink'];
   return `<div class="card"><div class="ch"><h3>Licencias médicas de ${L.MESES[+mes.slice(5) - 1].toLowerCase()}</h3>${ed() ? `<button class="btn sm" data-a="nueva-lic">${ic('plus')} Nueva licencia</button>` : ''}</div>${l.length ? `<table class="tbl lic-tbl"><thead><tr><th>Funcionario/a</th><th>Inicio</th><th>Término</th><th>Días</th><th>Reemplazos</th><th>Estado</th></tr></thead><tbody>${l.map(a => { const r = resumenReemp(a), e = est(a);
-    return `<tr data-a="reemp" data-id="${a.id}"><td><b>${esc(nc(a.nombre))}</b></td><td>${L.fechaCorta(a.fecha)}</td><td>${L.fechaCorta(a.hasta || a.fecha)}</td><td>${diasEntre(a.fecha, a.hasta || a.fecha)}</td><td class="${r ? '' : 'sin-r'}">${esc(r || 'Sin reemplazo · asignar')}</td><td><span class="tag ${e[1]}">${e[0]}</span></td></tr>`; }).join('')}</tbody></table>`
+    return `<tr data-a="reemp" data-id="${a.id}"><td><b>${esc(nc(nomAus(a)))}</b></td><td>${L.fechaCorta(a.fecha)}</td><td>${L.fechaCorta(a.hasta || a.fecha)}</td><td>${diasEntre(a.fecha, a.hasta || a.fecha)}</td><td class="${r ? '' : 'sin-r'}">${esc(r || 'Sin reemplazo · asignar')}</td><td><span class="tag ${e[1]}">${e[0]}</span></td></tr>`; }).join('')}</tbody></table>`
     : '<p class="muted">No hay licencias médicas en este mes.</p>'}</div>`;
 }
 /** Días de licencia médica en el año por funcionario (corridos y hábiles, recortados al año). */
@@ -430,14 +439,14 @@ function mReemplazos(id, nuevo) {
     return vis.map(p => chipS(r, p)).join('') + (resto.length ? `<button type="button" class="chip sm g-rojo otros" data-a="rp-mas" data-k="${esc(r.clave)}">Otros (${resto.length})</button><div class="chips rp-mas" data-k="${esc(r.clave)}" hidden>${resto.map(p => chipS(r, p)).join('')}</div>` : '')
       + (!c0.length ? '<span class="muted sm">Nadie libre en todas sus horas · </span>' : '') + `<button type="button" class="chip sm dark" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.INSPECTORIA)}">Inspectoría + Guía</button>`; };
   const filas = cs.map(r => `<tr><td><b>${esc(r.curso || r.detalle)}</b>${r.curso ? `<small>${esc(materia(r.bloques[0]))}</small>` : ''}</td><td class="sm">${r.tramos.map(t => `${DIA3(t.dia)} ${t.ini}–${t.fin}`).join('<br>')}</td>
-    <td><input class="rp" data-k="${esc(r.clave)}" list="dl-func" value="${esc(val(r.clave))}" placeholder="Nombre del reemplazo" ${ed() ? '' : 'disabled'}><div class="chips rp-chips">${sug(r)}${ed() ? `<button type="button" class="chip sm g-gris" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.NO_REQUIERE)}">No requiere</button>` : ''}</div></td></tr>`).join('');
+    <td><input class="rp" data-k="${esc(r.clave)}" list="dl-func" value="${esc(L.persona(val(r.clave)))}" placeholder="Nombre del reemplazo" ${ed() ? '' : 'disabled'}><div class="chips rp-chips">${sug(r)}${ed() ? `<button type="button" class="chip sm g-gris" data-a="rp-sug" data-k="${esc(r.clave)}" data-n="${esc(L.NO_REQUIERE)}">No requiere</button>` : ''}</div></td></tr>`).join('');
   const dato = (k, v) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`;
-  modal(`${a.tipo === 'LICENCIA' ? 'Licencia médica' : L.AUS_TIPOS[a.tipo] || 'Ausencia'} · ${nc(a.nombre)}`,
+  modal(`${a.tipo === 'LICENCIA' ? 'Licencia médica' : L.AUS_TIPOS[a.tipo] || 'Ausencia'} · ${nc(nomAus(a))}`,
     `${nuevo ? `<div class="alert green">${ic('check')}<div>Registrada. Ahora indica quién reemplaza en cada curso durante el período (puedes hacerlo después desde el calendario de licencias).</div></div>` : ''}
      <div class="sel flat lic-ficha">${dato('Inicio', L.fechaCorta(a.fecha))}${dato('Término', L.fechaCorta(fin))}${dato(a.tipo === 'LICENCIA' ? 'Días corridos' : 'Días hábiles', a.tipo === 'LICENCIA' ? corridos : (a.tipo === 'ADMIN_MEDIO' ? '½' : habiles))}${dato('Tramo', esc(L.textoTramo(a.jornada) || 'Día completo'))}</div>
      ${a.nota ? `<p class="muted sm">${esc(a.nota)}</p>` : ''}
      <form class="rp-form" data-form="reemp" data-id="${esc(id)}">
-       <div class="rp-todo"><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(c['*|*'] || '')}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
+       <div class="rp-todo"><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(L.persona(c['*|*'] || ''))}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
        ${cs.length && ed() ? LEYENDA_COB : ''}${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
         : `<p class="muted">${a.func_id ? 'No tiene clases lectivas en este período.' : 'Persona fuera de la nómina: sin horario registrado. Indica el reemplazo para todo el período.'}</p>`}
        <p class="muted sm">El reemplazo por curso se aplica a todas sus horas entre el ${L.fechaCorta(a.fecha)} y el ${L.fechaCorta(fin)}. En «Hoy» puedes cambiar un bloque de un día específico.</p>
@@ -454,7 +463,7 @@ function vLic() {
   do {
     for (let i = 0; i < 5; i++) {
       const f = L.addDias(d, i), en = L.pd(f).getUTCMonth() === m, l = aus.filter(a => L.ausActiva(a, f)).sort((a, b) => TIPO_LIC(a).localeCompare(TIPO_LIC(b)) || L.porApellido(a.nombre, b.nombre));
-      g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="reemp" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(a.nombre))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
+      g += `<div class="cal-d lic-d ${en ? '' : 'out'} ${f === hoy ? 'today' : ''}" ${ed() ? `data-a="nueva-lic" data-f="${f}"` : ''}><div class="cal-n"><span>${L.pd(f).getUTCDate()}</span>${l.length ? `<i class="tag gray">${l.length}</i>` : ''}</div>${l.map(a => `<div class="lic-chip ${TIPO_LIC(a)}" data-a="reemp" data-id="${a.id}" title="${esc(a.nombre + ' · ' + (L.AUS_TIPOS[a.tipo] || a.tipo) + ' · ' + L.fechaCorta(a.fecha) + ' al ' + L.fechaCorta(a.hasta || a.fecha))}">${esc(nombreParte(nomAus(a)))}${a.tipo === 'ADMIN_MEDIO' ? ' ½' : ''}</div>`).join('')}</div>`;
     }
     d = L.addDias(d, 7);
   } while (L.pd(d).getUTCMonth() === m && d.slice(0, 7) === ui.licMes);
@@ -467,7 +476,7 @@ function vLic() {
      ${[['LA', 'Licencias y administrativos'], ['lic', 'Licencias médicas'], ['adm', 'Administrativos'], ['TODAS', 'Todas las ausencias']].map(([k, n]) => `<button class="pill sm ${ui.licTipo === k ? 'on' : ''}" data-a="lic-tipo" data-v="${k}">${k === 'lic' || k === 'adm' ? `<span class="lic-dot ${k}"></span>` : ''}${n}</button>`).join('')}</div>
      <div class="card nopad"><div class="cal cal5">${g}</div></div>
      ${licMes(ui.licMes)}
-     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="reemp" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(a.nombre))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span><span class="${resumenReemp(a) ? '' : 'sin-r'}">${esc(resumenReemp(a) || 'Sin reemplazo')}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>
+     <div class="card"><h3>Vigentes y próximas</h3>${prox.length ? `<div class="lic-list">${prox.map(a => `<div class="lic-row" data-a="reemp" data-id="${a.id}"><span class="lic-dot ${TIPO_LIC(a)}"></span><b>${esc(nc(nomAus(a)))}</b><span>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</span><span>${L.fechaCorta(a.fecha)}${a.hasta && a.hasta !== a.fecha ? ' al ' + L.fechaCorta(a.hasta) : ''} · ${dias(a)} día${dias(a) > 1 ? 's' : ''}${TIPO_LIC(a) === 'adm' ? ' hábil' + (dias(a) > 1 ? 'es' : '') : ''}${a.fecha <= hoy ? ' · <b>en curso</b>' : ''}</span><span class="${resumenReemp(a) ? '' : 'sin-r'}">${esc(resumenReemp(a) || 'Sin reemplazo')}</span></div>`).join('')}</div>` : '<p class="muted">No hay licencias ni permisos vigentes.</p>'}</div>
      ${ui.licTipo === 'adm' ? adminAnual(y) : ui.licTipo === 'lic' ? licAnual(y) : '<p class="muted sm">Elige «Licencias médicas» o «Administrativos» arriba para ver el total del año por funcionario.</p>'}`;
 }
 
@@ -498,8 +507,8 @@ function vHor() {
     const f = get('funcionarios', ui.func) || funcOrd()[0]; if (!f) return hd + tabs; ui.func = f.id;
     const bs = all('bloques').filter(b => b.func_id === f.id), usados = new Set(bs.map(b => L.bloqueDe(b.ini, b.fin))), rows = L.BLOQUES.filter(r => usados.has(r.c) || (r.c !== 'M8' && r.c !== 'T7'));
     const hrs = t => (bs.filter(b => t.includes(b.tipo)).reduce((s, b) => s + L.tmin(b.fin) - L.tmin(b.ini), 0) / 60).toFixed(1).replace('.0', '');
-    return hd + tabs + `<div class="card sel"><div class="fld grow"><label>Funcionario/a</label><select data-c="func">${['DOCENTE', 'PIE'].map(e => `<optgroup label="${e === 'PIE' ? 'Equipo PIE' : 'Docentes'}">${funcOrd().filter(x => (x.estamento === 'PIE') === (e === 'PIE')).map(x => `<option value="${x.id}" ${x.id === f.id ? 'selected' : ''}>${esc(nc(x.nombre))}</option>`).join('')}</optgroup>`).join('')}</select></div>
-      <div class="stat"><b>${hrs(['CLASE'])} h</b><small>lectivas</small></div><div class="stat"><b>${hrs(['NOLECT'])} h</b><small>no lectivas</small></div><div class="stat"><b>${esc(f.horas_contrato || '—')}</b><small>contrato</small></div><div class="stat grow2"><b>${esc(f.departamento || '')}</b><small>${esc(f.cargo || f.estamento)}${f.jefatura ? ' · Jefatura ' + esc(f.jefatura) : ''}</small></div></div>
+    return hd + tabs + `<div class="card sel"><div class="fld grow"><label>Funcionario/a</label><select data-c="func">${[['Docentes', x => /docente/i.test(x.estamento || '')], ['Equipo PIE', x => /pie/i.test(x.estamento || '')], ['Asistentes de la educación', x => /asistente/i.test(x.estamento || '')], ['Otros', x => !/docente|pie|asistente/i.test(x.estamento || '')]].map(([g, es]) => { const l = funcOrd().filter(es); return l.length ? `<optgroup label="${g}">${l.map(x => `<option value="${x.id}" ${x.id === f.id ? 'selected' : ''}>${esc(nc(x.nombre))}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></div>
+      <div class="stat"><b>${hrs(['CLASE'])} h</b><small>lectivas</small></div><div class="stat"><b>${hrs(['NOLECT'])} h</b><small>no lectivas</small></div><div class="stat"><b>${esc(f.horas_contrato || '—')}</b><small>contrato</small></div><div class="stat grow2"><b>${esc(f.departamento || '')}</b><small>${esc(f.cargo || f.estamento)}${jefaturaDe(f) ? ' · Jefatura ' + esc(jefaturaDe(f)) : ''}</small></div></div>
       <div class="card nopad">${grillaHor(bs, rows, 'docente', 'hf')}</div><div class="legend">${['CLASE', 'CODOC', 'NOLECT', 'AULAREC', 'COLAB', 'CONSEJO', 'COLACION'].map(t => `<span><i class="hb ${L.TIPOS[t].k}"></i>${t === 'CONSEJO' ? 'Reuniones / turnos' : L.TIPOS[t].n}</span>`).join('')}</div>`;
   }
   if (ui.hTab === 'sabana') {
@@ -522,7 +531,7 @@ function vHor() {
   return hd + tabs + `<div class="pills scroll">${L.CICLOS.map(x => `<button class="pill sm ${x === ui.ciclo ? 'on' : ''}" data-a="ciclo" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
     <div class="pills scroll">${cs.filter(x => x.ciclo === ui.ciclo).map(x => `<button class="pill sm ${x.id === c.id ? 'on' : ''}" data-a="curso" data-v="${esc(x.id)}">${esc(x.id)}</button>`).join('')}</div>
     ${al.length ? `<div class="alerts">${al.map(e => `<div class="alert" data-a="edit-ev" data-id="${e.id}">${ic('alert')}<div><b>${L.DIAS[L.dow(e.fecha)]} ${L.fechaCorta(e.fecha)}${e.hora ? ' · ' + esc(e.hora) : ''}</b> ${esc(e.titulo)}</div></div>`).join('')}</div>` : ''}
-    <div class="card sel"><div class="stat grow2"><b>${esc(c.id)}</b><small>${esc(L.nombreEspacio(c.sala_id) || 'Sala por definir')} · Jornada ${c.jornada === 'TARDE' ? 'tarde' : 'mañana'}</small></div><div class="stat grow2"><b>${esc(L.nombreCorto(c.profesor_jefe) || "—")}</b><small>Profesor/a jefe</small></div><div class="stat grow"><b class="sm">${esc(c.equipo_pie || '—')}</b><small>Equipo PIE</small></div></div>
+    <div class="card sel"><div class="stat grow2"><b>${esc(c.id)}</b><small>${esc(L.nombreEspacio(c.sala_id) || 'Sala por definir')} · Jornada ${c.jornada === 'TARDE' ? 'tarde' : 'mañana'}</small></div><div class="stat grow2"><b>${esc(nc(c.profesor_jefe_id || c.profesor_jefe) || "—")}</b><small>Profesor/a jefe</small></div><div class="stat grow"><b class="sm">${esc(equipoPie(c) || '—')}</b><small>Equipo PIE</small></div></div>
     <div class="card nopad">${grillaHor(bs, rows, 'curso', 'hc')}</div>${adm() ? '<p class="muted sm">Arrastra una asignatura sobre otra para intercambiar los bloques. Toca un bloque para editarlo.</p>' : ''}`;
 }
 
@@ -552,9 +561,9 @@ function mEspacio(id) {
 // ============ CONFIGURACIÓN ============
 const ESQ = {
   funcionarios: { n: 'Funcionarios', cols: [['nombre', 'Nombre'], ['estamento', 'Estamento'], ['departamento', 'Departamento'], ['horas_contrato', 'Hrs. contrato'], ['horas_no_lectivas', 'No lectivas']], pre: 'F',
-    f: () => [{ k: 'nombre', label: 'Nombre completo', req: 1 }, { k: 'estamento', label: 'Estamento', type: 'select', options: ['DOCENTE', 'PIE', 'DIRECTIVO', 'ASISTENTE'], w: 'half' }, { k: 'departamento', label: 'Departamento', w: 'half' }, { k: 'cargo', label: 'Cargo / rol' }, { k: 'jefatura', label: 'Jefatura de curso', w: 'half' }, { k: 'email', label: 'Correo institucional', type: 'email', w: 'half' }, { k: 'horas_contrato', label: 'Horas contrato', w: 'third' }, { k: 'horas_lectivas', label: 'Horas lectivas', w: 'third' }, { k: 'horas_no_lectivas', label: 'Horas no lectivas', w: 'third' }] },
-  cursos: { n: 'Cursos', cols: [['id', 'Curso'], ['ciclo', 'Ciclo'], ['profesor_jefe', 'Profesor/a jefe'], ['equipo_pie', 'Dupla / equipo PIE']], idEdit: 1,
-    f: () => [{ k: 'id', label: 'Nombre del curso', req: 1, w: 'half' }, { k: 'orden', label: 'Orden', type: 'number', w: 'half' }, { k: 'ciclo', label: 'Ciclo', type: 'select', options: L.CICLOS, w: 'half' }, { k: 'jornada', label: 'Jornada', type: 'select', options: [['MANANA', 'Mañana'], ['TARDE', 'Tarde']], w: 'half' }, { k: 'sala_id', label: 'Sala base', type: 'select', options: optEsp() }, { k: 'profesor_jefe', label: 'Profesor/a jefe', list: 'dl-func' }, { k: 'equipo_pie', label: 'Dupla / equipo PIE', max: 300 }] },
+    f: () => [{ k: 'nombre', label: 'Nombre completo', req: 1 }, { k: 'estamento', label: 'Estamento', type: 'select', options: [['Docente', 'Docente'], ['PIE', 'Equipo PIE'], ['Asistente', 'Asistente de la educación'], ['Otro', 'Otro']], w: 'half' }, { k: 'departamento', label: 'Departamento', w: 'half' }, { k: 'cargo', label: 'Cargo / rol' }, { k: 'email', label: 'Correo institucional', type: 'email', w: 'half' }, { k: 'horas_contrato', label: 'Horas contrato', w: 'third' }, { k: 'horas_lectivas', label: 'Horas lectivas', w: 'third' }, { k: 'horas_no_lectivas', label: 'Horas no lectivas', w: 'third' }] },
+  cursos: { n: 'Cursos', cols: [['id', 'Curso'], ['ciclo', 'Ciclo'], ['profesor_jefe_id', 'Profesor/a jefe'], ['equipo_pie_ids', 'Dupla / equipo PIE']], idEdit: 1,
+    f: () => [{ k: 'id', label: 'Nombre del curso', req: 1, w: 'half' }, { k: 'orden', label: 'Orden', type: 'number', w: 'half' }, { k: 'ciclo', label: 'Ciclo', type: 'select', options: L.CICLOS, w: 'half' }, { k: 'jornada', label: 'Jornada', type: 'select', options: [['MANANA', 'Mañana'], ['TARDE', 'Tarde']], w: 'half' }, { k: 'sala_id', label: 'Sala base', type: 'select', options: optEsp() }, { k: 'profesor_jefe_id', label: 'Profesor/a jefe', type: 'select', options: [['', '— Sin jefatura —']].concat(funcOrd().filter(x => /docente/i.test(x.estamento || '')).map(x => [x.id, nc(x.nombre)])) }, { k: 'equipo_pie', label: 'Dupla / equipo PIE (nombres separados por coma)', max: 300, hint: 'Cada nombre se enlaza con su ficha de la nómina al guardar' }] },
   espacios: { n: 'Espacios', cols: [['nombre', 'Espacio'], ['edificio', 'Edificio'], ['capacidad', 'Capacidad'], ['encargado', 'Encargado/a']], pre: 'SALA',
     f: () => [{ k: 'nombre', label: 'Nombre del espacio', req: 1 }, { k: 'edificio', label: 'Edificio / sector', type: 'select', options: Object.entries(L.EDIFICIOS) }, { k: 'tipo', label: 'Tipo', w: 'half' }, { k: 'capacidad', label: 'Capacidad máxima', type: 'number', w: 'half' }, { k: 'encargado', label: 'Funcionario/a responsable', list: 'dl-func' }] },
   matriz: { n: 'Matriz fija', cols: [['titulo', 'Actividad'], ['categoria', 'Categoría'], ['dia', 'Día'], ['ini', 'Inicio'], ['fin', 'Fin']], pre: 'REC',
@@ -585,7 +594,7 @@ function vCfg() {
   const E = ESQ[ui.cfg], q = L.norm(ui.q), sems = ui.cfg === 'semanas' ? Object.fromEntries(L.semanas().map(w => [w.id, w.num])) : null;
   let rows = all(ui.cfg).filter(r => !q || L.norm(E.cols.map(([k]) => r[k]).join(' ')).includes(q));
   rows = ui.cfg === 'semanas' ? rows.sort((a, b) => a.inicio < b.inicio ? -1 : 1) : ui.cfg === 'cumpleanos' ? rows.sort((a, b) => a.mes - b.mes || a.dia - b.dia) : ui.cfg === 'cursos' ? rows.sort((a, b) => a.orden - b.orden) : rows.sort((a, b) => String(a[E.cols[0][0]]).localeCompare(String(b[E.cols[0][0]]), 'es', { numeric: true }));
-  const cel = (r, k) => k === '_num' ? (sems[r.id] || '—') : k === '_mes' ? L.MESES[r.mes - 1] : k === 'dia' && ui.cfg === 'cumpleanos' ? r.dia : k === 'dia' ? L.DIAS[r.dia] : k === 'edificio' ? L.EDIFICIOS[r.edificio] : k === 'categoria' ? L.MATRIZ_CAT[r.categoria] : r[k];
+  const cel = (r, k) => k === '_num' ? (sems[r.id] || '—') : k === '_mes' ? L.MESES[r.mes - 1] : k === 'dia' && ui.cfg === 'cumpleanos' ? r.dia : k === 'dia' ? L.DIAS[r.dia] : k === 'edificio' ? L.EDIFICIOS[r.edificio] : k === 'categoria' ? L.MATRIZ_CAT[r.categoria] : k === 'profesor_jefe_id' ? nc(r.profesor_jefe_id || r.profesor_jefe) : k === 'equipo_pie_ids' ? equipoPie(r) : r[k];
   return head('Configuración', `${E.n}: ${rows.length} registros`, adm() ? `<button class="btn dark" data-a="crud" data-t="${ui.cfg}" data-id="">${ic('plus')} Agregar</button>` : '') + tabs +
     `<div class="card nopad"><div class="tbar"><input type="search" data-inline="1" data-c="q" value="${esc(ui.q)}" placeholder="Buscar…" aria-label="Buscar"></div><div class="scrollx"><table class="tbl"><thead><tr>${E.cols.map(([, n]) => `<th>${n}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr data-a="crud" data-t="${ui.cfg}" data-id="${esc(r.id)}">${E.cols.map(([k]) => `<td>${esc(cel(r, k))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
 }
@@ -654,7 +663,8 @@ function previaAusencia() {
   if (o.jornada === 'HORAS') o.jornada = o.h_ini && o.h_fin ? o.h_ini + '-' + o.h_fin : 'AMBAS';
   if (o.tipo === 'ADMIN_MEDIO' && o.jornada === 'AMBAS') { const r = f.querySelector('[name=jornada][value=MANANA]'); r.checked = true; o.jornada = 'MANANA'; }
   if (!o.nombre) return box.innerHTML = '';
-  if (!fu) return box.innerHTML = `<div class="alert">${ic('user')}<div>Nombre libre (fuera de la nómina): se registrará sin cruce de horario.</div></div>`;
+  const marcado = !!(box.querySelector('[name=nuevo_id]') || {}).checked;
+  if (!fu) return box.innerHTML = `<div class="alert">${ic('user')}<div>Nombre libre (fuera de la nómina): se registrará sin cruce de horario.${adm() ? `<label class="chk nuevo-id"><input type="checkbox" name="nuevo_id" value="SI" ${marcado ? 'checked' : ''}><span>Agregar a la nómina con un ID nuevo</span></label>` : ''}</div></div>`;
   const aa = { func_id: fu.id, jornada: o.jornada, cobertura: '' }, af = L.tramos(aa, o.fecha);
   box.innerHTML = af.length ? `<div class="alert pink">${ic('alert')}<div><b>Deja ${af.length} tramo${af.length > 1 ? 's' : ''} de clases sin docente el ${L.DIAS[L.dow(o.fecha)].toLowerCase()}:</b><div class="prevl">${af.map(t => `<span><b>${t.ini}–${t.fin}</b> ${esc(t.b.curso_id || t.b.detalle)} · ${L.candidatos(o.fecha, t.ini, t.fin, t.b.curso_id).filter(p => p.grupo !== 'OTRO').length} disp.</span>`).join('')}</div></div></div>` : `<div class="alert green">${ic('check')}<div>${esc(sinClasesTxt(aa, o.fecha))}</div></div>`;
 }
@@ -677,7 +687,8 @@ function guardar(f) {
     if (o.hasta && o.hasta < o.fecha) return toast('La fecha "hasta" es anterior al inicio', 'err');
     if (o.jornada === 'HORAS') { if (!(o.h_ini && o.h_fin && L.tmin(o.h_fin) > L.tmin(o.h_ini))) return toast('Indica la hora de inicio y de término de la ausencia', 'err'); o.jornada = o.h_ini + '-' + o.h_fin; }
     delete o.h_ini; delete o.h_fin; delete o.dias;
-    const fu = funcPorNombre(o.nombre), prev = get('ausencias', id) || {};
+    let fu = funcPorNombre(o.nombre); const prev = get('ausencias', id) || {};
+    if (!fu && o.nuevo_id === 'SI' && adm()) fu = get('funcionarios', crearFuncionario(o.nombre)); delete o.nuevo_id;
     const nid = id || S.uid('AU');
     put('ausencias', { ...prev, ...o, hasta: o.hasta || o.fecha, func_id: fu ? fu.id : '', nombre: fu ? fu.nombre : o.nombre, cobertura: prev.func_id === (fu ? fu.id : '') ? (prev.cobertura || '') : '', id: nid });
     if (!id && /^(LICENCIA|ADMINISTRATIVO|ADMIN_MEDIO)$/.test(o.tipo)) { if (!form.dataset.lic) ui.fecha = o.fecha; setTimeout(() => mReemplazos(nid, true), 60); return; } // reemplazos de inmediato
@@ -692,6 +703,8 @@ function guardar(f) {
     if (t === 'semanas') { if (L.dow(o.inicio) !== 1) return toast('La semana debe comenzar un lunes', 'err'); o.fin = L.addDias(o.inicio, 4); }
     if (t === 'matriz' || t === 'cursos' || t === 'cumpleanos') for (const k of ['dia', 'orden', 'mes']) if (o[k] != null) o[k] = +o[k];
     if (t === 'cumpleanos' && !(o.dia >= 1 && o.dia <= 31)) return toast('El día debe estar entre 1 y 31', 'err');
+    if (t === 'cursos') { o.profesor_jefe = o.profesor_jefe_id ? L.persona(o.profesor_jefe_id) : ''; o.equipo_pie_ids = (o.equipo_pie || '').split(',').map(x => L.idPersona(x)).filter(L.esIdF).join(','); }
+    if (t === 'cumpleanos') o.func_id = L.esIdF(L.idPersona(o.nombre)) ? L.idPersona(o.nombre) : '';
     put(t, { ...(get(t, id) || {}), ...o, id: nid });
   }
   cerrarModal(); toast('Guardado', 'ok');
@@ -707,7 +720,7 @@ function borrar(btn, f) {
 function setCob(id, k, nombre) {
   const a = get('ausencias', id); if (!a) return; const c = L.cob(a);
   for (const x of String(k).split(',')) { const b = get('bloques', x.split('|')[1]), regla = b && (c['*|' + L.cursoClave(b)] || c['*|*']);
-    if (nombre) c[x] = nombre; else if (regla) c[x] = ''; else delete c[x]; } // quitar un reemplazo de período solo ese día deja la marca vacía
+    if (nombre) c[x] = L.idPersona(nombre); else if (regla) c[x] = ''; else delete c[x]; } // quitar un reemplazo de período solo ese día deja la marca vacía
   put('ausencias', { ...a, cobertura: JSON.stringify(c) });
 }
 function swap(pref, a, b) { // intercambia día/horario de los bloques de dos celdas
@@ -734,8 +747,8 @@ const A = {
   'rp-guardar': () => {
     const f = $('[data-form=reemp]'), a = get('ausencias', f.dataset.id); if (!a) return;
     const c = Object.fromEntries(Object.entries(L.cob(a)).filter(([k]) => !k.startsWith('*|'))), todo = $('#rp-todo').value.trim(), ins = [...f.querySelectorAll('.rp')];
-    const vals = ins.map(i => [i.dataset.k, i.value.trim() || todo]);
-    if (!ins.length) { if (todo) c['*|*'] = todo; }
+    const vals = ins.map(i => [i.dataset.k, L.idPersona(i.value.trim() || todo)]);
+    if (!ins.length) { if (todo) c['*|*'] = L.idPersona(todo); }
     else { // el nombre más repetido queda para todo el período y se guardan solo las excepciones por curso
       const n = {}; for (const [, v] of vals) if (v) n[v] = (n[v] || 0) + 1;
       const moda = Object.keys(n).sort((x, y) => n[y] - n[x])[0];
@@ -762,8 +775,9 @@ const A = {
   guardar: el => guardar(el.dataset.f), borrar: el => borrar(el, el.dataset.f),
   duplicar: () => { const f = $('[data-form=ev]'); syncDet(f); const o = leerForm(f); put('eventos', { ...o, id: S.uid('EV'), fecha: L.addDias(o.fecha, 7) }); cerrarModal(); toast(`Duplicado al ${L.fechaCorta(L.addDias(o.fecha, 7))}`, 'ok'); },
   cubrir: el => { setCob(el.dataset.id, el.dataset.k, el.dataset.n); if ($('#modal-root').firstChild) cerrarModal(); }, descubrir: el => setCob(el.dataset.id, el.dataset.k, ''),
-  'cubrir-otro': el => modal('Asignar reemplazo', `<form class="form" data-form="otro" data-id="${el.dataset.id}" data-k="${el.dataset.k}">${campos([{ k: 'n', label: 'Nombre de quien cubre', req: 1, list: 'dl-func', ph: 'Cualquier funcionario o reemplazante externo' }], {})}</form>`, `<span class="grow"></span><button class="btn dark" data-a="ok-otro">Asignar</button>`),
-  'ok-otro': () => { const f = $('[data-form=otro]'), n = leerForm(f).n; if (!n) return; setCob(f.dataset.id, f.dataset.k, n); cerrarModal(); },
+  'cubrir-otro': el => modal('Asignar reemplazo', `<form class="form" data-form="otro" data-id="${el.dataset.id}" data-k="${el.dataset.k}">${campos([{ k: 'n', label: 'Nombre de quien cubre', req: 1, list: 'dl-func', ph: 'Cualquier funcionario o reemplazante externo' }], {})}${adm() ? '<label class="chk nuevo-id"><input type="checkbox" name="nuevo_id" value="SI"><span>Si no está en la nómina, agregarlo con un ID nuevo (si no, queda como texto libre)</span></label>' : ''}</form>`, `<span class="grow"></span><button class="btn dark" data-a="ok-otro">Asignar</button>`),
+  'ok-otro': () => { const f = $('[data-form=otro]'), o = leerForm(f), n = o.n; if (!n) return;
+    const v = !funcPorNombre(n) && !L.esIdF(n) && o.nuevo_id === 'SI' && adm() ? crearFuncionario(n) : n; setCob(f.dataset.id, f.dataset.k, v); cerrarModal(); },
   'mas-cand': el => { const a = get('ausencias', el.dataset.id), k = el.dataset.k, [f, bid] = k.split(',')[0].split('|'), b = get('bloques', bid), ini = el.dataset.ini || b.ini, fin = el.dataset.fin || b.fin, c = L.candidatos(f, ini, fin, b.curso_id);
     modal('¿Quién puede cubrir?', `<p class="muted sm">${esc(b.curso_id || b.detalle)} · ${ini}–${fin} · en cada grupo, primero quien tiene menos reemplazos en el mes</p>${Object.keys(L.GRUPOS).map(g => { const l = c.filter(p => p.grupo === g); return l.length ? `<h4 class="cob-g ${L.GRUPOS[g].k}">${esc(L.GRUPOS[g].n)} <small>${esc(L.GRUPOS[g].d)}</small></h4><div class="chips col">${l.map(p => chipCand(p, a, k, 1)).join('')}</div>` : ''; }).join('') || '<p class="muted">Nadie disponible en ese horario.</p>'}`); },
   parte: () => mParte(parteDiario(ui.fecha)),
