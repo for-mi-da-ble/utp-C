@@ -110,7 +110,7 @@ export async function sincronizar() {
         for (const r of ch) { if (pend.has(t + '|' + r.id)) continue; if (r._del) delLocal(t, r.id); else { delete r._del; setLocal(t, r); } }
         persist(t);
       }
-      rev = j.rev; ls.set('rev', rev); if (completo) ls.set('completa', Date.now()); estado.rol = j.role; ls.set('rol', j.role); estado.email = j.email || estado.email;
+      rev = j.rev; ls.set('rev', rev); if (completo) ls.set('completa', Date.now()); estado.rol = j.role; ls.set('rol', j.role); estado.email = j.email || estado.email; if (j.respaldo) estado.respaldo = j.respaldo;
       // la Hoja se editó fuera de la app (a mano o con otra herramienta): se descarga todo de nuevo
       const ext = String(j.externo == null ? '' : j.externo);
       if (ext && ext !== ls.get('externo', '')) { ls.set('externo', ext); if (!completo) { rev = 0; ls.set('rev', 0); otra = true; } }

@@ -21,5 +21,7 @@ const U = 'http://localhost:8766/gas.html';
   const h2 = await (await fetch('http://localhost:8766/__sheet')).json(); assert(JSON.stringify(h2['03_Ausencias_Reemplazos']).includes('Profesor de reemplazo externo')); console.log('✓ editor guardó una ausencia en la Hoja');
   const Lc = await abrir('lector@colegio.test', '#hoy'); await listo(Lc); assert.equal(await Lc.locator('[data-a=nueva-aus]').count(), 0); console.log('✓ lector: solo lectura');
   const X = await abrir('intruso@otro.cl', '#hoy'); await X.waitForFunction(() => /no está autorizada/.test(document.querySelector('#banner').textContent + document.querySelector('#sync').title), null, { timeout: 30000 }); console.log('✓ cuenta no registrada: rechazada');
+  const rs = await (await fetch('http://localhost:8766/__respaldos')).json(); assert.equal(rs.length, 1, 'una copia al abrir (no una por cada apertura en menos de 2 días)'); console.log('✓ respaldo automático: 1 copia de la Hoja al abrir la app');
+  await A.goto(U + '?u=admin%40colegio.test#config'); await listo(A); assert(/último respaldo automático/.test(await A.textContent('#view')), 'Ajustes muestra el último respaldo');
   for (const p of [A, E, Lc]) assert.deepEqual(p.errs, []); console.log('\nTODO OK'); await b.close();
 })().catch(e => { console.error('FALLO:', e.message.slice(0, 400)); process.exit(1); });

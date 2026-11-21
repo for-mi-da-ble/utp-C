@@ -2,7 +2,7 @@
 // Sirve la app en http://localhost:8766 con la API en /exec. SOLO PARA PRUEBAS.
 const http = require('http'), fs = require('fs'), path = require('path'), vm = require('vm'), crypto = require('crypto');
 const ROOT = path.join(__dirname, '..'), CID = 'test-client.apps.googleusercontent.com';
-const sheets = {}, props = {}, cache = {}; let usuarioGAS = ''; // cuenta "con sesión de Google" en el modo Apps Script let actualizado = Date.now(); // fecha de modificación simulada del archivo en Drive
+const sheets = {}, props = {}, cache = {}, respaldos = []; let usuarioGAS = ''; // cuenta "con sesión de Google" en el modo Apps Script let actualizado = Date.now(); // fecha de modificación simulada del archivo en Drive
 function Sheet(name) { this.name = name; this.d = []; }
 Sheet.prototype = {
   getName() { return this.name; }, getLastRow() { return this.d.length; }, getLastColumn() { return this.d[0] ? this.d[0].length : 0; }, getMaxRows() { return Math.max(this.d.length, 1000); }, getMaxColumns() { return 26; },
@@ -12,13 +12,14 @@ Sheet.prototype = {
     setValues(v) { actualizado = Date.now(); for (let i = 0; i < v.length; i++) { s.d[r - 1 + i] = s.d[r - 1 + i] || []; for (let j = 0; j < v[i].length; j++) { let x = String(v[i][j]); if (/^[=+]/.test(x)) throw new Error('FORMULA SIN SANEAR: ' + x); s.d[r - 1 + i][c - 1 + j] = x.replace(/^'/, ''); } } return this; }, // Sheets oculta el apóstrofo inicial
     getDisplayValues() { const o = []; for (let i = 0; i < nr; i++) { const row = []; for (let j = 0; j < nc; j++) row.push((s.d[r - 1 + i] || [])[c - 1 + j] || ''); o.push(row); } return o; }, getSheet() { return s; }, getRow() { return r; }, getNumRows() { return nr; } }; }
 };
-const ss = { getId: () => 'hoja-prueba', getSheetByName: n => sheets[n] || null, insertSheet: n => sheets[n] = new Sheet(n) };
+const ss = { getId: () => 'hoja-prueba', getName: () => 'Hoja de prueba', getSheetByName: n => sheets[n] || null, insertSheet: n => sheets[n] = new Sheet(n) };
 const sandbox = { console, JSON, Date, Math, String, Number, Object, Array, encodeURIComponent,
-  SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() { } }, HtmlService: {}, DriveApp: { getFileById: () => ({ getLastUpdated: () => new Date(actualizado) }) }, Session: { getEffectiveUser: () => ({ getEmail: () => 'admin@colegio.test' }), getActiveUser: () => ({ getEmail: () => usuarioGAS }) },
+  SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() { } }, HtmlService: {}, DriveApp: { getFileById: () => ({ getLastUpdated: () => new Date(actualizado), getParents: () => ({ hasNext: () => false }), makeCopy: (n) => { respaldos.push({ n, c: Date.now() }); } }),
+    getRootFolder: () => ({ getFoldersByName: () => ({ hasNext: () => false }), createFolder: () => ({ getFiles: () => { const l = respaldos.map(r => ({ getDateCreated: () => new Date(r.c), setTrashed() { r.borrado = 1; } })); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; } }) }) }, Session: { getScriptTimeZone: () => 'America/Santiago', getEffectiveUser: () => ({ getEmail: () => 'admin@colegio.test' }), getActiveUser: () => ({ getEmail: () => usuarioGAS }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), setProperties: o => Object.assign(props, o) }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
   LockService: { getScriptLock: () => ({ waitLock() { }, tryLock: () => true, releaseLock() { } }) },
-  Utilities: { DigestAlgorithm: { SHA_256: 1 }, computeDigest: (a, s) => [...crypto.createHash('sha256').update(s).digest()], base64EncodeWebSafe: b => Buffer.from(b).toString('base64url') },
+  Utilities: { formatDate: d => d.toISOString().slice(0, 16), DigestAlgorithm: { SHA_256: 1 }, computeDigest: (a, s) => [...crypto.createHash('sha256').update(s).digest()], base64EncodeWebSafe: b => Buffer.from(b).toString('base64url') },
   UrlFetchApp: { fetch: u => { // imita tokeninfo: el "token" de prueba es header.payload.firma con firma "ok"
     const t = decodeURIComponent(u.split('id_token=')[1]).split('.'); let c = null; try { c = JSON.parse(Buffer.from(t[1], 'base64url').toString()); } catch { }
     const ok = c && t[2] === 'ok'; return { getResponseCode: () => ok ? 200 : 400, getContentText: () => JSON.stringify(c) }; } },
@@ -48,6 +49,7 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__silencioso')) { // fila agregada directo en la Hoja sin que se note el cambio de fecha (p. ej., carga masiva)
     const h = sheets['03_Ausencias_Reemplazos'], c = h.d[0], fila = c.map(k => ({ id: 'AU-SIL-1', fecha: '2026-03-16', hasta: '2026-03-16', nombre: 'Persona Planilla', tipo: 'ADMINISTRATIVO', jornada: 'AMBAS' }[k] || ''));
     h.d.push(fila); res.end('ok'); return; }
+  if (req.url === '/__respaldos') { res.end(JSON.stringify(respaldos)); return; }
   if (req.url === '/__sheet') { res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([k, s]) => [k, s.d])))); return; }
   let f = req.url.split('?')[0]; if (f === '/') f = '/index.html';
   if (f === '/config.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(`window.SIG_CONFIG={API_URL:'/exec',GOOGLE_CLIENT_ID:'${CID}',COLEGIO:'Colegio de Prueba',ANIO:2026};`); }

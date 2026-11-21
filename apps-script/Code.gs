@@ -80,9 +80,41 @@ function api(cuerpo) {
     if (!email) return JSON.stringify({ ok: false, code: 401, error: 'No se pudo identificar tu cuenta. Entra con tu cuenta del colegio.' });
     var role = rol_(email);
     if (!role) return JSON.stringify({ ok: false, code: 403, error: 'La cuenta ' + email + ' no está autorizada. Pide acceso a la Jefatura de UTP.' });
-    return JSON.stringify(procesar_(JSON.parse(cuerpo || '{}'), { ok: true, email: email, role: role }));
+    var req = JSON.parse(cuerpo || '{}');
+    if (!(req.ops || []).length) { try { respaldar_(false); } catch (e) { console.error('respaldo', e); } } // al abrir la app: copia si corresponde
+    return JSON.stringify(procesar_(req, { ok: true, email: email, role: role }));
   } catch (err) { console.error(err); return JSON.stringify({ ok: false, code: 500, error: 'Error interno del servidor.' }); }
 }
+
+// ---------- respaldo automático ----------
+// Cada 2 días se guarda una copia completa de la Hoja en la carpeta "SIG-UTP Respaldos" (junto a la base) y se conservan
+// las últimas 15. Se hace al abrir la app y, si se ejecutó instalarRespaldo(), también con una tarea diaria de Apps Script.
+var RESPALDO_CADA_MS = 2 * 24 * 3600 * 1000, RESPALDOS_MAX = 15, CARPETA_RESPALDOS = 'SIG-UTP Respaldos';
+function respaldar_(forzar) {
+  var p = PropertiesService.getScriptProperties(), vence = function () { return Date.now() - (Number(p.getProperty('RESPALDO')) || 0) >= RESPALDO_CADA_MS - 3600000; };
+  if (!forzar && !vence()) return false;
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(2000)) return false;
+  try {
+    if (!forzar && !vence()) return false; // otra ejecución ya lo hizo
+    var ss = SpreadsheetApp.getActiveSpreadsheet(), f = DriveApp.getFileById(ss.getId()), ps = f.getParents(), padre = ps.hasNext() ? ps.next() : DriveApp.getRootFolder();
+    var it = padre.getFoldersByName(CARPETA_RESPALDOS), dir = it.hasNext() ? it.next() : padre.createFolder(CARPETA_RESPALDOS);
+    f.makeCopy(ss.getName() + ' · respaldo ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH.mm'), dir);
+    p.setProperty('RESPALDO', String(Date.now()));
+    var copias = [], fs = dir.getFiles(); while (fs.hasNext()) copias.push(fs.next());
+    copias.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+    copias.slice(RESPALDOS_MAX).forEach(function (x) { x.setTrashed(true); }); // a la papelera: se puede recuperar 30 días
+    return true;
+  } finally { lock.releaseLock(); }
+}
+/** Ejecutar UNA vez desde el editor: crea la tarea diaria (copia cada 2 días aunque nadie abra la app) y hace la primera copia. */
+function instalarRespaldo() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'respaldoAutomatico') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('respaldoAutomatico').timeBased().everyDays(1).atHour(3).create();
+  respaldar_(true);
+}
+function respaldoAutomatico() { respaldar_(false); }
+/** Copia inmediata (por ejemplo, antes de un cambio grande). */
+function respaldarAhora() { respaldar_(true); }
 
 function doPost(e) {
   try {
@@ -164,7 +196,7 @@ function sincronizar_(ops, since, u) {
     if (out.length) changes[t] = out;
   });
   if (ops.length) { SpreadsheetApp.flush(); nuevas.REV = String(rev); nuevas.ULTIMA = String(Date.now()); props.setProperties(nuevas); }
-  return { ok: true, rev: rev, externo: Number(all.EXTERNO) || 0, role: u.role, email: u.email, changes: changes };
+  return { ok: true, rev: rev, externo: Number(all.EXTERNO) || 0, respaldo: Number(all.RESPALDO) || 0, role: u.role, email: u.email, changes: changes };
 }
 
 /** Texto plano acotado; neutraliza valores que Sheets interpretaría como fórmula. */
