@@ -26,11 +26,12 @@ function edificioDe(nombre, sede, tipo) {
 export async function importarArchivo(file) {
   if (/\.csv$/i.test(file.name)) return importarCumpleanos(file);
   const X = await sheetjs(), wb = await leer(file), names = wb.SheetNames;
+  if (names.includes('actividades') && names.includes('recursos_catalogo')) return importarReservas(X, wb);
   if (names.includes('04_Bloques_Horario')) return importarBD(X, wb);
   if (names.some(n => HOJA_DE[n])) return importarUnificada(X, wb);
   if (names.filter(n => /^\d{1,2}$/.test(n.trim())).length >= 3) return importarSemanal(X, wb);
   if (names.some(n => mesDe(n) >= 0)) return importarCalendario(X, wb);
-  throw new Error('No reconozco el formato. Se esperaba la BD de horarios, el Calendario Anual (hojas por mes), el Calendario Semanal (hojas 01, 02…) la base unificada de SIG-UTP o el listado de docentes/asistentes (.csv).');
+  throw new Error('No reconozco el formato. Se esperaba la BD de horarios, las reservas de la app anterior, el Calendario Anual (hojas por mes), el Calendario Semanal (hojas 01, 02…) la base unificada de SIG-UTP o el listado de docentes/asistentes (.csv).');
 }
 // ---- Cumpleaños desde los listados de docentes / asistentes (CSV del Mineduc, separado por ";") ----
 // Minimización de datos: del listado solo se guarda el nombre, el día y el mes. El RUN y el año de nacimiento se descartan.
@@ -229,7 +230,7 @@ function importarSemanal(X, wb) {
   if (nuevos.length) bulk('eventos', nuevos);
   if (fijos.length >= 5) { // la matriz de talleres y reforzamientos se toma de la semana más reciente
     const vistos = new Set(), filas = fijos.filter(f => { const k = [f.categoria, f.dia, f.ini, norm(f.titulo)].join('|'); return vistos.has(k) ? false : vistos.add(k); }).map((f, i) => ({ id: `SEM-${f.categoria === 'TALLER_ACLE' ? 'T' : 'R'}${p2(i + 1)}`, grupo: '', sala_id: '', participantes: '', ...f }));
-    bulk('matriz', all('matriz').filter(m => m.categoria === 'REUNION_FIJA').concat(filas), true);
+    bulk('matriz', all('matriz').filter(m => m.categoria !== 'TALLER_ACLE' && m.categoria !== 'REFORZAMIENTO').concat(filas), true);
     msg += ` Matriz permanente actualizada desde la semana ${ultima}: ${filas.filter(f => f.categoria === 'TALLER_ACLE').length} talleres y ${filas.filter(f => f.categoria === 'REFORZAMIENTO').length} reforzamientos.`;
   }
   return msg;
@@ -249,7 +250,8 @@ const ESQUEMA = {
   bloques: ['08_Bloques_Docentes', ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id']],
   cumpleanos: ['09_Cumpleanos', ['id', 'nombre', 'dia', 'mes', 'func_id']],
   proyectos: ['10_Proyectos', ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden']],
-  tareas: ['11_Tareas', ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']]
+  tareas: ['11_Tareas', ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']],
+  reservas: ['12_Reservas', ['id', 'fecha', 'ini', 'fin', 'espacio_id', 'curso_id', 'grupo', 'func_id', 'responsable', 'asignatura', 'actividad', 'recursos', 'lugar_original', 'origen']],
 };
 const HOJA_DE = {}; for (const t in ESQUEMA) { HOJA_DE[ESQUEMA[t][0]] = t; HOJA_DE['SIG_' + t] = t; }
 const LEEME = [
@@ -330,3 +332,60 @@ function XLSX_escribir(X, vistas) {
   X.writeFile(wb, `SIG-UTP_Base_Unificada_${new Date().toISOString().slice(0, 10)}.xlsx`, { compression: true });
 }
 export { EDIFICIOS };
+
+// ---- Reservas de espacios exportadas desde la app anterior (hoja "actividades") ----
+// Los usos que se repiten 12 semanas o más ya están como actividades permanentes (matriz / horarios): no se importan.
+// Se descartan duplicados, se juntan los bloques seguidos y todas quedan activas. Se ignoran las hojas de usuarios (claves).
+const RS_M = [['08:00', '08:45'], ['08:45', '09:30'], ['09:45', '10:30'], ['10:30', '11:15'], ['11:30', '12:15'], ['12:15', '13:00'], ['13:00', '13:45'], ['13:45', '14:30'], ['14:30', '15:15']];
+const RS_T = [['14:00', '14:45'], ['14:45', '15:30'], ['15:45', '16:30'], ['16:30', '17:15'], ['17:30', '18:15'], ['18:15', '19:00'], ['19:00', '19:45']];
+const RS_LUGAR = { 'sala de computacion': 'SALA-COMPUTACION', 'sala de computacion cm': 'SALA-COMPUTACIONCM', 'gimnasio cm': 'SALA-GIMNASIOCICLOMENOR', 'gimnasio': 'SALA-GIMNASIOMATRIZ',
+  'biblioteca cm': 'SALA-BIBLIOTECA', 'biblioteca': 'SALA-BIBLIOTECAMATRIZ', 'hall cm': 'SALA-HALLCM', 'patio cm': 'SALA-PATIOCM', 'laboratorio de ciencias': 'SALA-LABCIENCIAS', 'sala de profesores': 'SALA-SALAPROFESORESPIE' };
+function rsCurso(c) {
+  const t = String(c || '').trim(), m = /^(\d)\s*M\s*([A-D])$/i.exec(t), b = /^(\d)\s*°\s*([A-D])$/i.exec(t);
+  const id = m ? `${m[1]}° MEDIO ${m[2].toUpperCase()}` : b ? `${b[1]}° BÁSICO ${b[2].toUpperCase()}` : '';
+  return id && all('cursos').some(x => x.id === id) ? id : '';
+}
+function rsLugar(l, curso) {
+  const k = norm(l); if (RS_LUGAR[k]) return RS_LUGAR[k];
+  let m = /^sala (\d{1,2})$/.exec(k); if (m && all('espacios').some(e => e.id === 'SALA-SALA' + m[1])) return 'SALA-SALA' + m[1];
+  m = /^sala (\d)° ?([ab])$/.exec(k); if (m) return 'SALA-SALACICLOMENOR' + m[1] + m[2].toUpperCase();
+  if (k === 'sala de clases' && curso) return (all('cursos').find(c => c.id === curso) || {}).sala_id || '';
+  return '';
+}
+function rsPersona(n) { // "Valentina Medina" / "ISABEL CONTRERAS CHANDIA" → ID de la nómina si hay una sola coincidencia (nombre + apellido)
+  const t = new Set(norm(n).split(' ').filter(w => w.length > 2)); if (t.size < 2) return '';
+  const c = all('funcionarios').filter(f => { const w = new Set(norm(f.nombre).split(' ')); let k = 0; for (const x of t) if (w.has(x)) k++; return k >= 2; });
+  return c.length === 1 ? c[0].id : '';
+}
+async function importarReservas(X, wb) {
+  const filas = X.utils.sheet_to_json(wb.Sheets.actividades, { defval: '', raw: false });
+  const semana = f => { const d = pd(f), j = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.floor((d - j) / 6048e5); };
+  const horas = r => { const b = +r.bloque, j = String(r.jornada);
+    if (j === 'manana' && RS_M[b]) return RS_M[b]; if (j === 'tarde' && RS_T[b]) return RS_T[b];
+    if (r.horaInicio && r.horaFin) return [hhmm(r.horaInicio), hhmm(r.horaFin)]; return RS_M[b] || null; };
+  const base = filas.filter(r => /^\d{4}-\d\d-\d\d$/.test(String(r.fecha).trim())).map(r => { const h = horas(r); return h && { r, fecha: String(r.fecha).trim(), ini: h[0], fin: h[1], dow: dow(String(r.fecha).trim()) }; }).filter(Boolean);
+  const patron = x => [x.r.lugar, x.r.curso, norm(x.r.nombre), x.r.asignatura, x.dow, x.ini].join('|'), sems = new Map();
+  for (const x of base) (sems.get(patron(x)) || sems.set(patron(x), new Set()).get(patron(x))).add(semana(x.fecha));
+  const puntuales = base.filter(x => sems.get(patron(x)).size < 12), fijas = base.length - puntuales.length;
+  // una reserva por (fecha, lugar, curso, actividad, docente) y tramo continuo
+  const clave = x => [x.fecha, x.r.lugar, x.r.curso, norm(x.r.nombre), norm(x.r.docente)].join('|'), grupos = new Map();
+  for (const x of puntuales) (grupos.get(clave(x)) || grupos.set(clave(x), []).get(clave(x))).push(x);
+  const out = []; let dup = 0;
+  for (const l of grupos.values()) {
+    l.sort((a, b) => tmin(a.ini) - tmin(b.ini));
+    let cur = null;
+    for (const x of l) {
+      if (cur && tmin(x.ini) <= tmin(cur.fin) + 15) { if (tmin(x.fin) <= tmin(cur.fin)) { dup++; continue; } cur.fin = x.fin; continue; } // seguido o repetido
+      const r = x.r, curso = rsCurso(r.curso), esp = rsLugar(r.lugar, curso);
+      let rec = ''; try { const a = JSON.parse(r.recursos || '[]'); rec = a.map(z => `${z.nombre}${z.cantidad ? ' x' + z.cantidad : ''}`).join(', '); } catch { }
+      cur = { fecha: x.fecha, ini: x.ini, fin: x.fin, espacio_id: esp, curso_id: curso, grupo: curso ? '' : String(r.curso || '').trim(), func_id: rsPersona(r.docente), responsable: String(r.docente || '').trim(),
+        asignatura: String(r.asignatura || '').trim(), actividad: String(r.nombre || '').trim().slice(0, 200), recursos: rec, lugar_original: String(r.lugar || '').trim(), origen: 'App anterior' };
+      out.push(cur);
+    }
+  }
+  for (const r of out) r.id = 'RS-' + [r.fecha, r.ini, r.espacio_id || norm(r.lugar_original), norm(r.curso_id || r.grupo), norm(r.actividad).slice(0, 20)].join('|').replace(/[^a-z0-9|:-]/gi, '').slice(0, 90);
+  const ids = new Set(); const filasOk = out.filter(r => ids.has(r.id) ? (dup++, false) : ids.add(r.id));
+  bulk('reservas', filasOk, false);
+  const sinEsp = filasOk.filter(r => !r.espacio_id).length, sinDoc = filasOk.filter(r => !r.func_id).length;
+  return `Reservas importadas: ${filasOk.length} (de ${filas.length} filas; ${fijas} eran usos fijos semanales y se omitieron; ${dup} duplicadas). ${sinEsp} sin espacio reconocido y ${sinDoc} con docente sin ficha en la nómina (quedan con el nombre escrito).`;
+}

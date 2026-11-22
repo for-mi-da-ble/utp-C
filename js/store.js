@@ -1,6 +1,6 @@
 // Almacén de datos: persistencia local inmediata (RF-5.3) + sincronización por filas con Google Sheets.
 const CFG = window.SIG_CONFIG || {};
-export const TABLES = ['semanas', 'eventos', 'ausencias', 'funcionarios', 'cursos', 'espacios', 'bloques', 'matriz', 'cumpleanos', 'proyectos', 'tareas'];
+export const TABLES = ['semanas', 'eventos', 'ausencias', 'funcionarios', 'cursos', 'espacios', 'bloques', 'matriz', 'cumpleanos', 'proyectos', 'tareas', 'reservas'];
 // Dos formas de conectarse a la Hoja de Google:
 //  · App servida por el propio Apps Script (google.script.run): Google identifica la cuenta del colegio; no requiere Google Cloud.
 //  · App en GitHub Pages + API_URL y GOOGLE_CLIENT_ID (requiere un ID de cliente OAuth en Google Cloud).

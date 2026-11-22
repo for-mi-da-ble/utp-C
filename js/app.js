@@ -98,7 +98,7 @@ function vHoy() {
     </div>`;
 }
 const evTools = e => `<div class="evt"><button data-a="ev-mv" data-id="${e.id}" data-n="-1" title="Día anterior" aria-label="Mover al día anterior">${ic('left')}</button><button data-a="ev-mv" data-id="${e.id}" data-n="1" title="Día siguiente" aria-label="Mover al día siguiente">${ic('right')}</button><select data-c="ev-sec" data-id="${e.id}" aria-label="Sección" title="Mover a otra sección">${SEC_OPC.map(([k, n]) => `<option value="${k}" ${L.seccionDe(e) === k ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="esp ${L.esEspecial(e) ? 'on' : ''}" data-a="ev-esp" data-id="${e.id}" title="Nota especial" aria-pressed="${L.esEspecial(e)}">! Nota</button><span class="grow"></span><button data-a="edit-ev" data-id="${e.id}" title="Editar">Editar</button><button class="del" data-a="ev-del" data-id="${e.id}" title="Eliminar" aria-label="Eliminar">${ic('x')}</button></div>`;
-const RUT_K = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray' };
+const RUT_K = { TALLER_ACLE: 'amber', REFORZAMIENTO: 'green', REUNION_FIJA: 'gray', USO_ESPACIO: 'blue' };
 const rutChip = m => `<div class="rut ${RUT_K[m.categoria]}" ${adm() ? `data-a="edit-mat" data-id="${m.id}"` : 'data-a="nada"'} title="${esc(`${m.ini}–${m.fin} ${m.titulo}${m.sala_id ? ' · ' + L.nombreEspacio(m.sala_id) : ''}`)}"><b>${m.ini}</b> ${esc(m.titulo)}</div>`;
 // Detalle por hora: cada línea "08:30 Ingreso a sala" se muestra con la hora destacada.
 // Clase de color de cada burbuja según su sección (vista semanal, Hoy y PDF).
@@ -338,7 +338,7 @@ function vCal() {
   const evs = {}; for (const e of all('eventos')) if (!ui.area || e.area === ui.area) (evs[e.fecha] = evs[e.fecha] || []).push(e);
   do {
     for (let i = 0; i < 7; i++, d = L.addDias(d, 1)) {
-      const en = L.pd(d).getUTCMonth() === m, w = i === 0 && sems[d], list = L.eventosDe(d).filter(e => L.enMensual(e) && (!ui.area || e.area === ui.area)), rut = ui.rutMes && en && !ui.area ? L.rutinaDe(d) : [];
+      const en = L.pd(d).getUTCMonth() === m, w = i === 0 && sems[d], list = L.eventosDe(d).filter(e => L.enMensual(e) && (!ui.area || e.area === ui.area)), rut = ui.rutMes && en && !ui.area ? L.rutinaDe(d, { TALLER_ACLE: 1, REFORZAMIENTO: 1, REUNION_FIJA: 1 }) : [];
       g += `<div class="cal-d ${en ? '' : 'out'} ${d === L.hoy() ? 'today' : ''} ${i > 4 ? 'we' : ''} ${en && !list.length && !rut.length ? 'vac' : ''}" data-drop="dia:${d}" data-a="nuevo-ev" data-f="${d}" data-m="SI"><div class="cal-n"><span>${L.pd(d).getUTCDate()}<em> ${L.DIAS[i + 1]}</em></span>${w ? `<i class="tag ${w.num ? 'blue' : 'gray'}">${w.num ? 'S' + w.num : 'Receso'}</i>` : ''}</div>${list.map(e => evChip(e, false, false, true)).join('')}${rut.length ? `<div class="rutbox"><span class="rutlbl">Rutina</span>${rut.map(rutChip).join('')}</div>` : ''}</div>`;
     }
   } while (L.pd(d).getUTCMonth() === m);
@@ -544,7 +544,9 @@ function vHor() {
 function ocupacion(id) {
   const o = {}, add = (dia, ini, fin, txt, k) => { const c = L.bloqueDe(ini, fin); if (!c) return; const key = c + '|' + dia; o[key] = o[key] || []; if (!o[key].some(x => x.txt === txt)) o[key].push({ txt, k }); };
   for (const b of all('bloques')) if (b.sala_id === id && b.tipo !== 'COLACION') add(+b.dia, b.ini, b.fin, b.tipo === 'CLASE' ? `${b.curso_id} · ${materia(b)}` : `${(L.TIPOS[b.tipo] || {}).n} · ${L.nombreCorto(fn(b.func_id))}`, (L.TIPOS[b.tipo] || {}).k);
-  for (const m of all('matriz')) if (m.sala_id === id) for (const B of L.BLOQUES) if (L.tmin(m.ini) < B.b && L.tmin(m.fin) > B.a) add(+m.dia, B.i, B.f, m.titulo, 'amber');
+  for (const m of all('matriz')) if (m.sala_id === id) for (const B of L.BLOQUES) if (L.tmin(m.ini) < B.b && L.tmin(m.fin) > B.a) add(+m.dia, B.i, B.f, m.titulo, m.categoria === 'USO_ESPACIO' ? 'blue' : 'amber');
+  // reservas puntuales de la semana que se está viendo
+  const l = lunes(); for (let d = 1; d <= 5; d++) for (const r of L.reservasDe(L.addDias(l, d - 1), id)) for (const B of L.BLOQUES) if (L.tmin(r.ini) < B.b && L.tmin(r.fin) > B.a) add(d, B.i, B.f, `Reserva · ${r.curso_id || r.grupo || ''} ${r.actividad ? '· ' + r.actividad : ''}`.trim(), 'pink');
   return o;
 }
 function vEsp() {

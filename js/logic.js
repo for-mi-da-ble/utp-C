@@ -30,7 +30,10 @@ export const EDIFICIOS = {
   ED_MATRIZ: 'Edificio Matriz', ED_CICLO_MENOR: 'Edificio Ciclo Menor y Párvulo',
   ED_PIE: 'Aulas de Recursos PIE y Especialidades', ED_COMUNES: 'Espacios Deportivos, CRA y Gestión'
 };
-export const MATRIZ_CAT = { TALLER_ACLE: 'Talleres ACLE', REFORZAMIENTO: 'Reforzamientos', REUNION_FIJA: 'Reuniones fijas' };
+export const MATRIZ_CAT = { TALLER_ACLE: 'Talleres ACLE', REFORZAMIENTO: 'Reforzamientos', REUNION_FIJA: 'Reuniones fijas', USO_ESPACIO: 'Usos fijos de espacios' };
+// USO_ESPACIO: uso semanal de una sala (aula de recursos, evaluaciones, clases en gimnasio…). Solo cuenta para la ocupación de espacios;
+// no se muestra en Semana, Hoy, el mensual ni el PDF (la clase ya está en los horarios).
+export const reservasDe = (fecha, espacio) => all('reservas').filter(r => r.fecha === fecha && (!espacio || r.espacio_id === espacio)).sort((a, b) => tmin(a.ini) - tmin(b.ini));
 export const INSPECTORIA = 'Inspectoría + Guía pedagógica';
 export const NO_REQUIERE = 'No requiere'; // el tramo no necesita reemplazo (p. ej., curso en salida): no aparece en el parte diario
 
