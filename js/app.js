@@ -88,7 +88,8 @@ function vHoy() {
     ${P.bloqueHoy(f)}
     <div class="grid2w">
       <div class="card"><div class="ch"><h3>Ausencias y cobertura</h3>${r.afectados ? `<div class="dmini">${donut(p, sin ? 'var(--pink)' : 'var(--green)')}<b>${Math.round(p * 100)}%</b></div>` : ''}</div>
-        ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>Sin ausencias registradas para este día.</p></div>`}</div>
+        ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>${r.sinAccion.length ? 'Sin ausencias que requieran reemplazo hoy.' : 'Sin ausencias registradas para este día.'}</p></div>`}
+        ${r.sinAccion.length ? `<p class="muted sm sin-accion">También ausentes, sin acción: ${r.sinAccion.map(a => `<button class="lnk" data-a="reemp" data-id="${a.id}">${esc(nc(nomAus(a)))}</button> <span>(${L.modoReemp(a) === 'contratado' ? 'reemplazo contratado: ' + esc(nc(L.cob(a)['*|*'])) : 'no requiere reemplazo'})</span>`).join(' · ')}</p>` : ''}</div>
       <div class="col">
         <div class="card"><div class="ch"><h3>Actividades del día</h3>${ed() ? `<button class="ibtn" data-a="nuevo-ev" data-f="${f}" aria-label="Agregar actividad">${ic('plus')}</button>` : ''}</div>
           <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.func_id || c.nombre))}</button>`).join('')}</div>` : ''}</div>
@@ -126,7 +127,7 @@ function cursoCorto(c) {
   return String(c || '');
 }
 function parteDatos(f) {
-  const r = L.resumenDia(f), w = L.semanaDe(f), grupos = [];
+  const r0 = L.resumenDia(f), r = { ...r0, aus: r0.todas }, w = L.semanaDe(f), grupos = [];
   const usados = new Set();
   for (const [t, es] of GRUPOS_AUS) {
     const filas = [];
@@ -136,7 +137,8 @@ function parteDatos(f) {
       const sub = [t === 'OTRAS AUSENCIAS' || a.tipo === 'ADMIN_MEDIO' ? L.AUS_TIPOS[a.tipo] || a.tipo : '', L.textoTramo(a.jornada)].filter(Boolean).join(' · ');
       const nombres = [...new Set(tr.map(x => x.cubre))];
       let rem;
-      if (!tr.length) rem = [{ t: a.func_id ? 'Sin clases que cubrir' : 'Sin reemplazo', mut: 1 }];
+      if (L.modoReemp(a) === 'contratado') rem = [{ t: nombreParte(L.cob(a)['*|*']) + ' (reemplazo contratado)' }];
+      else if (!tr.length) rem = [{ t: a.func_id ? 'Sin clases que cubrir' : 'Sin reemplazo', mut: 1 }];
       else if (tr.length > 1 && nombres.length === 1 && nombres[0]) rem = [{ t: nombreParte(nombres[0]) }];
       else rem = tr.map(x => ({ t: `${x.ini}–${x.fin} (${x.b.curso_id ? cursoCorto(x.b.curso_id) : x.b.detalle || '—'}) `, fin: x.cubre ? nombreParte(x.cubre) : x.parcial ? 'EN PARTE' : 'POR DEFINIR', mal: !x.cubre }));
       filas.push([{ t: nombreParte(nomAus(a)), sub: sub ? [sub] : [] }, rem]);
@@ -413,7 +415,8 @@ function adminAnual(y) {
 /** Resumen de los reemplazos de un período: "Ana Pérez" o "3°MC: Ana Pérez · 2°MB: Luis Soto". */
 function resumenReemp(a) {
   const c = L.cob(a), r = c['*|*'] ? [nc(c['*|*'])] : [];
-  for (const k of Object.keys(c)) if (k.startsWith('*|') && k !== '*|*') r.push(`${cursoCorto(k.slice(2))}: ${c[k] ? nc(c[k]) : 'sin reemplazo'}`);
+  if (c['*|modo'] === 'sin-reemplazo') return 'No requiere reemplazo'; if (c['*|modo'] === 'contratado') return 'Contratado: ' + nc(c['*|*']);
+  for (const k of Object.keys(c)) if (k.startsWith('*|') && k !== '*|*' && k !== '*|modo') r.push(`${cursoCorto(k.slice(2))}: ${c[k] ? nc(c[k]) : 'sin reemplazo'}`);
   const d = Object.keys(c).filter(k => !k.startsWith('*|') && c[k]).length;
   return r.concat(d ? [`${d} bloque${d > 1 ? 's' : ''} asignado${d > 1 ? 's' : ''} por día`] : []).join(' · ');
 }
@@ -446,10 +449,12 @@ function mReemplazos(id, nuevo) {
      <div class="sel flat lic-ficha">${dato('Inicio', L.fechaCorta(a.fecha))}${dato('Término', L.fechaCorta(fin))}${dato(a.tipo === 'LICENCIA' ? 'Días corridos' : 'Días hábiles', a.tipo === 'LICENCIA' ? corridos : (a.tipo === 'ADMIN_MEDIO' ? '½' : habiles))}${dato('Tramo', esc(L.textoTramo(a.jornada) || 'Día completo'))}</div>
      ${a.nota ? `<p class="muted sm">${esc(a.nota)}</p>` : ''}
      <form class="rp-form" data-form="reemp" data-id="${esc(id)}">
-       <div class="rp-todo"><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(L.persona(c['*|*'] || ''))}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
-       ${cs.length && ed() ? LEYENDA_COB : ''}${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
+       ${ed() ? `<div class="seg rp-modo">${[['', 'Reemplazo por curso'], ['contratado', 'Reemplazo contratado'], ['sin-reemplazo', 'No requiere reemplazo']].map(([v, n]) => `<label><input type="radio" name="rp-modo" value="${v}" ${L.modoReemp(a) === v ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div>
+       <p class="muted sm rp-modo-txt">Con «Reemplazo contratado» o «No requiere reemplazo» la ausencia queda resuelta para todo el período y no aparece en «Hoy» (sí en el parte diario si hay reemplazo).</p>` : ''}
+       <div class="rp-todo" ${L.modoReemp(a) === 'sin-reemplazo' ? 'hidden' : ''}><div class="fld grow"><label for="rp-todo">Reemplazo para todo el período</label><input id="rp-todo" list="dl-func" value="${esc(L.persona(c['*|*'] || ''))}" placeholder="Ej.: reemplazante contratado" ${ed() ? '' : 'disabled'}></div>${cs.length && ed() ? '<button type="button" class="btn" data-a="rp-todos">Aplicar a todos los cursos</button>' : ''}</div>
+       <div class="rp-cursos" ${L.modoReemp(a) ? 'hidden' : ''}>${cs.length && ed() ? LEYENDA_COB : ''}${cs.length ? `<table class="tbl rp-tbl"><thead><tr><th>Curso</th><th>Horario</th><th>Reemplazo</th></tr></thead><tbody>${filas}</tbody></table>`
         : `<p class="muted">${a.func_id ? 'No tiene clases lectivas en este período.' : 'Persona fuera de la nómina: sin horario registrado. Indica el reemplazo para todo el período.'}</p>`}
-       <p class="muted sm">El reemplazo por curso se aplica a todas sus horas entre el ${L.fechaCorta(a.fecha)} y el ${L.fechaCorta(fin)}. En «Hoy» puedes cambiar un bloque de un día específico.</p>
+       </div><p class="muted sm">El reemplazo por curso se aplica a todas sus horas entre el ${L.fechaCorta(a.fecha)} y el ${L.fechaCorta(fin)}. En «Hoy» puedes cambiar un bloque de un día específico.</p>
      </form>`,
     ed() ? `<button class="btn" data-a="edit-aus" data-id="${esc(id)}">Editar fechas y datos</button><span class="grow"></span><button class="btn dark" data-a="rp-guardar">${ic('check')} Guardar reemplazos</button>` : '', 'wide');
 }
@@ -747,6 +752,9 @@ const A = {
   'rp-guardar': () => {
     const f = $('[data-form=reemp]'), a = get('ausencias', f.dataset.id); if (!a) return;
     const c = Object.fromEntries(Object.entries(L.cob(a)).filter(([k]) => !k.startsWith('*|'))), todo = $('#rp-todo').value.trim(), ins = [...f.querySelectorAll('.rp')];
+    const modo = (f.querySelector('[name=rp-modo]:checked') || {}).value || '';
+    if (modo === 'contratado' && !todo) return toast('Escribe el nombre del reemplazo contratado', 'err');
+    if (modo) { c['*|modo'] = modo; c['*|*'] = modo === 'contratado' ? L.idPersona(todo) : L.NO_REQUIERE; put('ausencias', { ...a, cobertura: JSON.stringify(c) }); cerrarModal(); toast(modo === 'contratado' ? 'Reemplazo contratado registrado: ya no aparece en «Hoy»' : 'Marcada sin reemplazo: ya no aparece en «Hoy»', 'ok'); return; }
     const vals = ins.map(i => [i.dataset.k, L.idPersona(i.value.trim() || todo)]);
     if (!ins.length) { if (todo) c['*|*'] = L.idPersona(todo); }
     else { // el nombre más repetido queda para todo el período y se guardan solo las excepciones por curso
@@ -813,6 +821,8 @@ document.addEventListener('change', e => {
   else if (c === 'ev-sec') { const e = get('eventos', el.dataset.id); if (e && ed()) { put('eventos', { ...e, seccion: el.value }); toast('Movido a ' + L.SECCIONES[el.value].toLowerCase(), 'ok'); } }
   else if (c === 'import') { const file = el.files[0]; if (!file) return; if (file.size > 15e6) return toast('Archivo demasiado grande', 'err'); toast('Importando…'); importarArchivo(file).then(m => { toast(m, 'ok'); pedir(); }).catch(err => toast(err.message || 'No se pudo importar', 'err')); el.value = ''; }
   if (el.closest('[data-form=ev]')) avisoColision(); if (el.closest('[data-form=aus]')) previaAusencia();
+  if (el.name === 'rp-modo') { const f = el.closest('form'); f.querySelector('.rp-cursos').hidden = !!el.value; f.querySelector('.rp-todo').hidden = el.value === 'sin-reemplazo';
+    const lb = f.querySelector('label[for=rp-todo]'); if (lb) lb.textContent = el.value === 'contratado' ? 'Reemplazo contratado (nombre)' : 'Reemplazo para todo el período'; }
 });
 document.addEventListener('input', e => {
   const el = e.target;

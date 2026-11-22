@@ -181,10 +181,14 @@ export function candidatos(fecha, ini, fin, curso) {
   }
   return out.sort((x, y) => ORDEN_G[x.grupo] - ORDEN_G[y.grupo] || x.n - y.n || porApellido(x.nombre, y.nombre));
 }
+/** Modo de reemplazo de un período: '' (por curso o por día), 'contratado' (una persona todo el período) o 'sin-reemplazo'. */
+export const modoReemp = a => cob(a)['*|modo'] || '';
+/** Resumen del día. `aus` son las ausencias que requieren gestión en «Hoy»; `sinAccion`, las resueltas para todo el período
+ * (reemplazo contratado o licencia que no requiere reemplazo); `todas`, ambas (para el parte diario). */
 export function resumenDia(fecha) {
-  const aus = ausenciasDe(fecha); let af = 0, cu = 0;
+  const todas = ausenciasDe(fecha), aus = todas.filter(a => !modoReemp(a)), sinAccion = todas.filter(a => modoReemp(a)); let af = 0, cu = 0;
   for (const a of aus) for (const x of afectados(a, fecha)) { af++; if (x.cubre) cu++; }
-  return { aus, afectados: af, cubiertos: cu, eventos: eventosDe(fecha) };
+  return { aus, sinAccion, todas, afectados: af, cubiertos: cu, eventos: eventosDe(fecha) };
 }
 
 // ---------- eventos ----------
