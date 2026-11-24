@@ -76,23 +76,25 @@ function tarjetaAusencia(a, fecha) {
       : `<p class="muted sm pad">${a.func_id ? sinClasesTxt(a, fecha) : 'Persona externa a la nómina: sin horario registrado.'}</p>`}</div>`;
 }
 function vHoy() {
-  const f = ui.fecha, r = L.resumenDia(f), w = L.semanaDe(f), sin = r.afectados - r.cubiertos, p = r.afectados ? r.cubiertos / r.afectados : 1;
+  const f = ui.fecha, r0 = L.resumenDia(f), w = L.semanaDe(f), sin = r0.afectados - r0.cubiertos, p = r0.afectados ? r0.cubiertos / r0.afectados : 1;
+  // En «Ausencias y cobertura» solo quienes dejan clases ese día; los demás (asistentes, docentes sin horas lectivas ese día) van a «Actividades del día».
+  const sinHoras = r0.aus.filter(a => !L.afectados({ ...a, jornada: 'AMBAS' }, f).length), r = { ...r0, aus: r0.aus.filter(a => !sinHoras.includes(a)) };
   const ev = j => r.eventos.filter(e => j === 'M' ? e.jornada !== 'TARDE' : e.jornada === 'TARDE');
   const evl = l => l.length ? l.map(e => evChip(e)).join('') : '<p class="muted sm">Sin actividades.</p>';
   return head(f === L.hoy() ? 'Hoy' : L.DIAS[L.dow(f)], `${L.fechaLarga(f)} · ${L.etiquetaSemana(w)}`, navFecha(1, f === L.hoy() ? 'Hoy' : 'Ir a hoy') + (ed() ? `<button class="btn" data-a="nueva-lic">${ic('user')} Licencia o permiso</button><button class="btn dark" data-a="nueva-aus">${ic('plus')} Registrar ausencia</button>` : '')) +
     `<div class="grid3">
-      <div class="card kpi"><div class="kh"><span class="avatar pink">${ic('user')}</span><span>Ausencias<br>docentes</span></div><div class="big">${r.aus.length}</div><div class="kf">${r.aus.length ? esc(r.aus.slice(0, 3).map(a => L.nombreCorto(a.nombre)).join(', ')) + (r.aus.length > 3 ? '…' : '') : 'Dotación completa'}</div></div>
+      <div class="card kpi"><div class="kh"><span class="avatar pink">${ic('user')}</span><span>Ausencias<br>con clases</span></div><div class="big">${r.aus.length}</div><div class="kf">${r.aus.length ? esc(r.aus.slice(0, 3).map(a => L.nombreCorto(a.nombre)).join(', ')) + (r.aus.length > 3 ? '…' : '') : 'Dotación completa'}</div></div>
       <div class="card kpi"><div class="kh"><span class="avatar ${sin ? 'amber' : 'green'}">${ic(sin ? 'alert' : 'check')}</span><span>Bloques<br>sin cubrir</span></div><div class="big">${sin}<sup class="${sin ? 'dn' : 'up'}">${r.cubiertos}/${r.afectados} cubiertos</sup></div><div class="bar"><i class="${sin ? 'pink' : 'green'}" style="width:${Math.round(p * 100)}%"></i></div></div>
       <div class="card kpi"><div class="kh"><span class="avatar blue">${ic('cal')}</span><span>Semana<br>de clases</span><a class="ibtn" href="#semana" aria-label="Ver semana">${ic('arrow')}</a></div><div class="big">${w && w.num ? w.num : '—'}<sup>${w ? `Semestre ${esc(w.semestre)}` : ''}</sup></div><div class="kf">${r.eventos.length} actividad${r.eventos.length === 1 ? '' : 'es'} hoy${L.cumplesEntre(f, f).length ? ' · 🎂 ' + L.cumplesEntre(f, f).length + ' cumpleaños' : ''}</div></div>
     </div>
     ${P.bloqueHoy(f)}
     <div class="grid2w">
       <div class="card"><div class="ch"><h3>Ausencias y cobertura</h3>${r.afectados ? `<div class="dmini">${donut(p, sin ? 'var(--pink)' : 'var(--green)')}<b>${Math.round(p * 100)}%</b></div>` : ''}</div>
-        ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>${r.sinAccion.length ? 'Sin ausencias que requieran reemplazo hoy.' : 'Sin ausencias registradas para este día.'}</p></div>`}
+        ${r.aus.length ? r.aus.map(a => tarjetaAusencia(a, f)).join('') : `<div class="okbox">${ic('check')}<p>${r.sinAccion.length || sinHoras.length ? 'Sin ausencias que requieran reemplazo hoy.' : 'Sin ausencias registradas para este día.'}</p></div>`}
         ${r.sinAccion.length ? `<p class="muted sm sin-accion">También ausentes, sin acción: ${r.sinAccion.map(a => `<button class="lnk" data-a="reemp" data-id="${a.id}">${esc(nc(nomAus(a)))}</button> <span>(${L.modoReemp(a) === 'contratado' ? 'reemplazo contratado: ' + esc(nc(L.cob(a)['*|*'])) : 'no requiere reemplazo'})</span>`).join(' · ')}</p>` : ''}</div>
       <div class="col">
         <div class="card"><div class="ch"><h3>Actividades del día</h3>${ed() ? `<button class="ibtn" data-a="nuevo-ev" data-f="${f}" aria-label="Agregar actividad">${ic('plus')}</button>` : ''}</div>
-          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.func_id || c.nombre))}</button>`).join('')}</div>` : ''}</div>
+          <h4>Mañana <small>08:00–13:45</small></h4>${evl(ev('M'))}<h4>Tarde <small>14:00–19:00</small></h4>${evl(ev('T'))}${sinHoras.length ? `<h4>Ausentes sin clases que cubrir</h4><div class="chips">${sinHoras.map(a => `<button class="chip" data-a="${/^(LICENCIA|ADMINISTRATIVO|ADMIN_MEDIO)$/.test(a.tipo) ? 'reemp' : 'edit-aus'}" data-id="${a.id}" title="${esc((L.AUS_TIPOS[a.tipo] || a.tipo) + (L.textoTramo(a.jornada) ? ' · ' + L.textoTramo(a.jornada) : ''))}">${esc(nc(nomAus(a)))} <small>${esc(L.AUS_TIPOS[a.tipo] || a.tipo)}</small></button>`).join('')}</div>` : ''}${L.cumplesEntre(f, f).length ? `<h4>🎂 Cumpleaños</h4><div class="chips">${L.cumplesEntre(f, f).map(c => `<button class="chip cum" data-a="edit-cum" data-id="${c.id}">${esc(nc(c.func_id || c.nombre))}</button>`).join('')}</div>` : ''}</div>
         <div class="card parte"><h3>Parte diario</h3><p class="muted sm">Texto y tabla listos para Gmail o WhatsApp con las ausencias, reemplazos y actividades.</p><button class="btn dark wide" data-a="parte">${ic('mail')} Generar parte de las 08:00</button></div>
       </div>
     </div>`;
