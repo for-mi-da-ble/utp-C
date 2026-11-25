@@ -243,7 +243,7 @@ const ESQUEMA = {
   semanas: ['01_Semanas_Clases', ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta']],
   eventos: ['02_Eventos_Calendario', ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'especial', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen']],
   ausencias: ['03_Ausencias_Reemplazos', ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura']],
-  funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email']],
+  funcionarios: ['04_Funcionarios', ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email', 'cubre_ciclos']],
   espacios: ['05_Espacios_Edificios', ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado']],
   cursos: ['06_Cursos', ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie', 'profesor_jefe_id', 'equipo_pie_ids']],
   matriz: ['07_Matriz_Fija_Semanal', ['id', 'categoria', 'dia', 'ini', 'fin', 'titulo', 'grupo', 'sala_id', 'participantes', 'participantes_ids']],
@@ -252,6 +252,7 @@ const ESQUEMA = {
   proyectos: ['10_Proyectos', ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden']],
   tareas: ['11_Tareas', ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota']],
   reservas: ['12_Reservas', ['id', 'fecha', 'ini', 'fin', 'espacio_id', 'curso_id', 'grupo', 'func_id', 'responsable', 'asignatura', 'actividad', 'recursos', 'lugar_original', 'origen']],
+  suspensiones: ['13_Cursos_Sin_Clases', ['id', 'fecha', 'hasta', 'cursos', 'jornada', 'motivo']],
 };
 const HOJA_DE = {}; for (const t in ESQUEMA) { HOJA_DE[ESQUEMA[t][0]] = t; HOJA_DE['SIG_' + t] = t; }
 const LEEME = [

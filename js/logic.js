@@ -101,7 +101,7 @@ export function textoTramo(j) { const m = RE_HORAS.exec(j || ''); return m ? `de
 export function afectados(a, fecha) {
   if (!a.func_id || dow(fecha) > 5) return [];
   const d = dow(fecha), c = cob(a);
-  return all('bloques').filter(b => b.func_id === a.func_id && +b.dia === d && b.tipo === 'CLASE' && enJornada(a.jornada, b.ini, b.fin))
+  return all('bloques').filter(b => b.func_id === a.func_id && +b.dia === d && b.tipo === 'CLASE' && enJornada(a.jornada, b.ini, b.fin) && !cursoSinClases(b.curso_id, fecha, b.ini, b.fin))
     .sort((x, y) => tmin(x.ini) - tmin(y.ini))
     .map(b => ({ b, key: fecha + '|' + b.id, cod: bloqueDe(b.ini, b.fin), cubre: cubreDe(c, fecha + '|' + b.id, b) }));
 }
@@ -122,6 +122,13 @@ export function cursosDelPeriodo(a) {
     r.bloques.push(b); m.set(k, r);
   }
   return [...m.values()];
+}
+// ---------- cursos sin clases (salidas, cierre anticipado de año, etc.) ----------
+/** ¿El curso no tiene clases ese día y a esa hora? (tabla suspensiones: fecha, hasta, cursos "4° MEDIO A,4° MEDIO B", jornada, motivo) */
+export function suspensionesDe(fecha) { return all('suspensiones').filter(x => x.fecha <= fecha && fecha <= (x.hasta || x.fecha)); }
+export function cursoSinClases(curso, fecha, ini, fin) {
+  if (!curso) return null;
+  return suspensionesDe(fecha).find(x => String(x.cursos || '').split(',').map(c => c.trim()).includes(curso) && enJornada(x.jornada, ini, fin || ini)) || null;
 }
 /** Los bloques afectados agrupados en tramos: horas seguidas con el mismo curso y asignatura (como en el horario). */
 export function tramos(a, fecha) {
@@ -146,23 +153,27 @@ export function conteoMes(fecha) {
 export const GRUPOS = {
   PIE_CURSO: { n: 'PIE en el curso', d: 'Acompaña a este curso en ese horario', k: 'g-verde' },
   PIE_AR: { n: 'PIE en aula de recursos', d: 'Trabaja con este curso; a esa hora está en aula de recursos', k: 'g-amarillo' },
-  DOC: { n: 'Docente disponible', d: 'Docente de asignatura en horas no lectivas', k: 'g-rojo' },
+  CONV: { n: 'Equipo de convivencia', d: 'Disponible para tomar cursos de este ciclo', k: 'g-celeste' },
+  DOC: { n: 'Docente disponible', d: 'Docente de asignatura en horas no lectivas (o su curso no tiene clases)', k: 'g-rojo' },
   OTRO: { n: 'Otros PIE disponibles', d: 'Equipo PIE libre o en aula de recursos con otro curso', k: 'g-gris' }
 };
-export const ORDEN_G = { PIE_CURSO: 0, PIE_AR: 1, DOC: 2, OTRO: 3 };
+export const ORDEN_G = { PIE_CURSO: 0, PIE_AR: 1, CONV: 2, DOC: 3, OTRO: 4 };
 const esPIE = f => /pie/i.test(f.estamento || '') || /pie/i.test(f.departamento || '');
 /** ¿Quién puede cubrir el tramo ini–fin del curso? Presentes, sin otra cobertura en ese tramo, clasificados por prioridad. */
 export function candidatos(fecha, ini, fin, curso) {
   const d = dow(fecha), A = tmin(ini), B = tmin(fin), aus = ausenciasDe(fecha), cnt = conteoMes(fecha), dur = B - A;
   const fuera = new Set(aus.filter(a => enJornada(a.jornada, ini, fin)).map(a => a.func_id).filter(Boolean));
   const ocupados = new Set(); // ya asignados a cubrir en un tramo que se traslapa
-  for (const a of aus) { const c = cob(a); for (const k in c) { const [f, id] = k.split('|'); if (f !== fecha) continue; const b = get('bloques', id); if (b && tmin(b.ini) < B && tmin(b.fin) > A) ocupados.add(idPersona(c[k])); } }
+  // ya asignados a cubrir a esa hora (bloque a bloque o con un reemplazo de período), en cualquier curso
+  for (const a of aus) for (const x of afectados(a, fecha)) if (x.cubre && tmin(x.b.ini) < B && tmin(x.b.fin) > A) ocupados.add(idPersona(x.cubre));
   // actividades permanentes (reuniones fijas, talleres) a esa hora: sus participantes no están libres
   for (const m of rutinaDe(fecha)) if (m.participantes_ids && tmin(m.ini) < B && tmin(m.fin) > A) for (const pid of String(m.participantes_ids).split(',')) ocupados.add(pid.trim());
-  const por = {}, enCurso = new Set();
+  const por = {}, enCurso = new Set(), ensena = new Set(), liberado = new Set();
   for (const b of all('bloques')) {
     if (curso && b.curso_id === curso && (b.tipo === 'CODOC' || b.tipo === 'AULAREC')) enCurso.add(b.func_id);
+    if (curso && b.curso_id === curso && b.tipo === 'CLASE') ensena.add(b.func_id); // le hace clases a ese curso (punto verde)
     if (+b.dia !== d || tmin(b.ini) >= B || tmin(b.fin) <= A) continue;
+    if (b.tipo === 'CLASE' && cursoSinClases(b.curso_id, fecha, b.ini, b.fin)) { liberado.add(b.func_id); (por[b.func_id] = por[b.func_id] || []); continue; } // su curso no tiene clases: queda libre
     (por[b.func_id] = por[b.func_id] || []).push(b);
   }
   const out = [];
@@ -171,6 +182,7 @@ export function candidatos(fecha, ini, fin, curso) {
     const bs = por[id], f = get('funcionarios', id); if (!f || ocupados.has(f.id)) continue;
     const solapa = b => Math.min(tmin(b.fin), B) - Math.max(tmin(b.ini), A);
     const libre = b => b.tipo === 'NOLECT' || b.tipo === 'AULAREC', pie = esPIE(f);
+    if (!bs.length && liberado.has(id)) { out.push({ id, nombre: f.nombre, grupo: pie ? 'OTRO' : 'DOC', tipo: 'LIBERADO', liberado: 1, ensena: ensena.has(id), n: cnt[f.id] || 0 }); continue; }
     let g = '';
     if (curso && bs.some(b => b.tipo === 'CODOC' && b.curso_id === curso && solapa(b) >= Math.min(20, dur))) g = 'PIE_CURSO';
     else if (bs.every(b => libre(b) || (b.tipo === 'CODOC' && b.curso_id === curso))) {
@@ -180,7 +192,13 @@ export function candidatos(fecha, ini, fin, curso) {
       else g = 'OTRO';
     }
     if (!g) continue;
-    out.push({ id, nombre: f.nombre, grupo: g, tipo: bs.some(b => b.tipo === 'NOLECT') ? 'NOLECT' : 'AULAREC', n: cnt[f.id] || 0 });
+    out.push({ id, nombre: f.nombre, grupo: g, tipo: bs.some(b => b.tipo === 'NOLECT') ? 'NOLECT' : 'AULAREC', liberado: liberado.has(id) ? 1 : 0, ensena: ensena.has(id), n: cnt[f.id] || 0 });
+  }
+  // equipo de convivencia / orientación: disponible para tomar cursos de los ciclos indicados (columna cubre_ciclos)
+  const ciclo = curso ? ((get('cursos', curso) || {}).ciclo || '') : '';
+  if (ciclo) for (const f of all('funcionarios')) {
+    if (!f.cubre_ciclos || por[f.id] || fuera.has(f.id) || ocupados.has(f.id) || out.some(x => x.id === f.id)) continue;
+    if (String(f.cubre_ciclos).split(',').map(x => x.trim()).includes(ciclo)) out.push({ id: f.id, nombre: f.nombre, grupo: 'CONV', tipo: 'CONV', ensena: false, n: cnt[f.id] || 0 });
   }
   return out.sort((x, y) => ORDEN_G[x.grupo] - ORDEN_G[y.grupo] || x.n - y.n || porApellido(x.nombre, y.nombre));
 }
@@ -225,10 +243,12 @@ export function nombreEspacio(id) { const s = get('espacios', id); return s ? s.
 // ---------- nombres de personas: se muestran como "Primer nombre Primer apellido" y se ordenan por el primer apellido ----------
 // En la nómina los docentes vienen con los apellidos primero ("Leyton Opazo Paula Javiera") y el equipo PIE y la planilla
 // con el nombre primero ("Romina Rodríguez Lobos", "Constanza E. Véjar Labrín").
-let idxNom = null, idxRef = null, idxLen = -1;
+let idxNom = null, idxRef = null, idxLen = -1, idxCorto = null, idxCortoRef = null;
 function funcDeNombre(n) {
-  const fs = all('funcionarios'); if (fs !== idxRef || fs.length !== idxLen) { idxNom = new Map(fs.map(f => [norm(f.nombre), f])); idxRef = fs; idxLen = fs.length; }
-  return idxNom.get(norm(n));
+  const fs = all('funcionarios'); if (fs !== idxRef || fs.length !== idxLen) { idxNom = new Map(fs.map(f => [norm(f.nombre), f])); idxRef = fs; idxLen = fs.length; idxCorto = null; }
+  const k = norm(n); if (idxNom.has(k)) return idxNom.get(k);
+  if (!idxCorto || idxRef !== idxCortoRef) { idxCorto = new Map(); idxCortoRef = idxRef; for (const f of fs) { const c = norm(nombreCorto(f.nombre)); idxCorto.set(c, idxCorto.has(c) ? null : f); } } // "Isabel Contreras" → su ficha si es única
+  return idxCorto.get(k) || undefined;
 }
 const RE_PERSONA = /^[\p{L}.'´ ]+$/u; // solo letras: no se tocan textos como "Inspectoría + Guía" o "Ana Pérez / Luis Soto"
 export function partesNombre(n) {

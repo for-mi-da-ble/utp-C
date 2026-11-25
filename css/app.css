@@ -368,3 +368,11 @@ h4.cob-g.g-verde { color: #14692b; } h4.cob-g.g-amarillo { color: #6e5100; } h4.
 .chk.nuevo-id { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13.5px; }
 .rp-modo { margin: 6px 0 4px; } .rp-modo-txt { margin: 0 0 10px; } .rp-cursos[hidden], .rp-todo[hidden] { display: none; }
 .sin-accion { margin-top: 10px; } .lnk { background: none; border: 0; padding: 0; color: var(--navy); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+/* Reemplazos: equipo de convivencia, docentes que conocen al curso y cursos sin clases */
+.chip.g-celeste { background: #e0f4fa; border-color: #9fd6e8; color: #0b5d75; } .cob-ley .g-celeste::before { background: #e0f4fa; border-color: #4fb3d1; }
+h4.cob-g.g-celeste { color: #0b5d75; }
+.dot-ens { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px #fff; flex: none; }
+.cob-ley .ley-ens::before { display: none; } .cob-ley .ley-ens { display: inline-flex; align-items: center; gap: 5px; }
+.chip .lib { font-size: 10.5px; opacity: .8; margin-left: 0; } .chip.susp { background: #f1ecff; border-color: #d9cdfc; color: #4a2ea0; }
+.susp-ciclo { margin: 6px 0 10px; } .susp-ciclo b { font-size: 12.5px; color: var(--mut); display: block; margin-bottom: 4px; }
+.chk-chip { cursor: pointer; gap: 6px; } .chk-chip input { accent-color: var(--navy); }

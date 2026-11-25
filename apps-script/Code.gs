@@ -10,13 +10,13 @@
 // Pestaña de la Hoja para cada tabla (mismos nombres que la base unificada .xlsx).
 var HOJAS = { semanas: '01_Semanas_Clases', eventos: '02_Eventos_Calendario', ausencias: '03_Ausencias_Reemplazos', funcionarios: '04_Funcionarios',
   espacios: '05_Espacios_Edificios', cursos: '06_Cursos', matriz: '07_Matriz_Fija_Semanal', bloques: '08_Bloques_Docentes', cumpleanos: '09_Cumpleanos',
-  proyectos: '10_Proyectos', tareas: '11_Tareas', reservas: '12_Reservas' };
+  proyectos: '10_Proyectos', tareas: '11_Tareas', reservas: '12_Reservas', suspensiones: '13_Cursos_Sin_Clases' };
 var MARGEN_EXTERNO = 10000; // ms: diferencia mínima para considerar que alguien editó la hoja fuera de la app
 var TABLAS = {
   semanas: ['id', 'inicio', 'fin', 'tipo', 'semestre', 'etiqueta'],
   eventos: ['id', 'fecha', 'titulo', 'hora', 'mensual', 'seccion', 'especial', 'detalle', 'jornada', 'area', 'cursos', 'espacio_id', 'responsable', 'origen'],
   ausencias: ['id', 'fecha', 'hasta', 'func_id', 'nombre', 'tipo', 'jornada', 'nota', 'cobertura'],
-  funcionarios: ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email'],
+  funcionarios: ['id', 'nombre', 'estamento', 'departamento', 'cargo', 'jefatura', 'horas_contrato', 'horas_lectivas', 'horas_no_lectivas', 'email', 'cubre_ciclos'],
   cursos: ['id', 'orden', 'ciclo', 'jornada', 'sala_id', 'profesor_jefe', 'equipo_pie', 'profesor_jefe_id', 'equipo_pie_ids'],
   espacios: ['id', 'nombre', 'edificio', 'tipo', 'capacidad', 'encargado'],
   bloques: ['id', 'func_id', 'dia', 'ini', 'fin', 'tipo', 'curso_id', 'detalle', 'sala_id'],
@@ -24,7 +24,8 @@ var TABLAS = {
   cumpleanos: ['id', 'nombre', 'dia', 'mes', 'func_id'],
   proyectos: ['id', 'area', 'nombre', 'responsable', 'estado', 'doc_url', 'orden'],
   tareas: ['id', 'proyecto_id', 'titulo', 'responsable', 'inicio', 'fin', 'hito', 'estado', 'duracion_min', 'agendada', 'evento_id', 'nota'],
-  reservas: ['id', 'fecha', 'ini', 'fin', 'espacio_id', 'curso_id', 'grupo', 'func_id', 'responsable', 'asignatura', 'actividad', 'recursos', 'lugar_original', 'origen']
+  reservas: ['id', 'fecha', 'ini', 'fin', 'espacio_id', 'curso_id', 'grupo', 'func_id', 'responsable', 'asignatura', 'actividad', 'recursos', 'lugar_original', 'origen'],
+  suspensiones: ['id', 'fecha', 'hasta', 'cursos', 'jornada', 'motivo']
 };
 var META = ['_rev', '_del', '_por'];
 var SOLO_ADMIN = { funcionarios: 1, cursos: 1, espacios: 1, bloques: 1, matriz: 1, semanas: 1 };
